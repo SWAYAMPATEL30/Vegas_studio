@@ -10,7 +10,7 @@ interface CartModalProps {
 }
 
 export function CartModal({ isOpen, onClose }: CartModalProps) {
-  const { items, total } = useCart()
+  const { items, total, removeItem } = useCart()
 
   if (!isOpen) return null
 
@@ -32,7 +32,12 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           <X className="w-5 h-5" />
         </button>
 
-        <h2 className="text-xl font-semibold mb-2" style={{ color: '#9AC138' }}>Tu carrito</h2>
+        <h2
+          className="text-xl font-semibold mb-2"
+          style={{ color: "#9AC138" }}
+        >
+          Tu carrito
+        </h2>
 
         {items.length === 0 ? (
           <>
@@ -49,26 +54,59 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           </>
         ) : (
           <>
-            <p className="text-gray-600 mb-4">¡Mantendremos tu carrito listo para ti!</p>
+            <p className="text-gray-600 mb-4">
+              ¡Mantendremos tu carrito listo para ti!
+            </p>
 
             <div className="space-y-3 mb-4">
               {items.map((item) => (
-                <div key={item.id} className="flex justify-between items-center">
-                  <span className="font-medium" style={{ color: '#9AC138' }}>{item.name}</span>
-                  <span className="px-3 py-1 rounded text-sm" style={{ border: '1px solid #9AC138', color: '#9AC138' }}>
-                    {formatPrice(item.price)}
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center gap-2"
+                >
+                  <span
+                    className="font-medium"
+                    style={{ color: "#9AC138" }}
+                  >
+                    {item.name}
                   </span>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="px-3 py-1 rounded text-sm"
+                      style={{
+                        border: "1px solid #9AC138",
+                        color: "#9AC138",
+                      }}
+                    >
+                      {formatPrice(item.price)}
+                    </span>
+
+                    {/* Remove from cart */}
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="text-red-600 hover:text-red-800"
+                      title="Eliminar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t">
-              <span className="font-medium px-4 py-2 rounded-md" style={{ backgroundColor: '#DFE1D5', color: '#1A2722' }}>Total: {formatPrice(total)}</span>
+              <span
+                className="font-medium px-4 py-2 rounded-md"
+                style={{ backgroundColor: "#DFE1D5", color: "#1A2722" }}
+              >
+                Total: {formatPrice(total)}
+              </span>
               <Link
                 href="/agendar"
                 onClick={onClose}
                 className="px-4 py-2 rounded-md transition-colors font-medium"
-                style={{ backgroundColor: '#FDB400', color: '#1A2722' }}
+                style={{ backgroundColor: "#FDB400", color: "#1A2722" }}
               >
                 Continuar
               </Link>

@@ -59,6 +59,11 @@ export function Header({ onCartClick }: HeaderProps) {
           <Link href="/#ubicacion" className="text-foreground hover:text-primary transition-colors">
             Ubicación
           </Link>
+          {isLoggedIn && (
+            <Link href="/myappointments" className="text-foreground hover:text-primary transition-colors">
+              mis citas
+            </Link>
+          )}
         </nav>
 
         {/* Right side actions */}

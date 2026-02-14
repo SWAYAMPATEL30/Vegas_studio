@@ -60,8 +60,8 @@ interface Service {
 }
 
 // API Base URL
-// const API_BASE_URL = 'https://vegas-estudio-backend.onrender.com'
-const API_BASE_URL = 'http://localhost:5000'
+const API_BASE_URL = 'https://vegas-estudio-backend.onrender.com'
+// const API_BASE_URL = 'http://localhost:5000'
 
 export default function AdminPage() {
   const router = useRouter()
