@@ -43,7 +43,7 @@ export function Header({ onCartClick }: HeaderProps) {
             alt="Vegas Estudio"
             width={160}
             height={89}
-            className="w-[160px] h-[89px] object-contain"
+            className="w-32 md:w-[160px] h-auto object-contain"
             priority
           />
         </Link>
@@ -147,16 +147,10 @@ export function Header({ onCartClick }: HeaderProps) {
           {/* CTA Button */}
           <Link
             href="/agendar"
-            className="flex items-center gap-[6px] rounded-[10px] transition-all duration-300 font-medium whitespace-nowrap"
-            style={{
-              minWidth: '132.5px',
-              height: '40px',
-              padding: '10px',
-              fontSize: '14px',
-            }}
+            className="header-agendar-btn flex items-center gap-[6px] rounded-[10px] transition-all duration-300 font-medium whitespace-nowrap px-4 h-10 text-sm"
           >
-            <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} />
-            <span>Agendar cita</span>
+            <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="header-calendar-icon" />
+            <span className="hidden sm:inline">Agendar cita</span>
           </Link>
         </div>
       </div>

@@ -11,9 +11,8 @@ import { CartModal } from "@/components/cart-modal"
 import { LoginModal } from "@/components/login-modal"
 import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/lib/auth-context"
-
-// API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+import { API_BASE_URL } from "@/lib/api"
+import { services as localServices } from "@/lib/services-data"
 
 interface Service {
   id: string
@@ -53,13 +52,27 @@ export default function ServiciosPage() {
   const fetchServices = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/services`)
-      if (!response.ok) throw new Error('Failed to fetch services')
-      const data = await response.json()
-      setServices(data)
+      const res = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setServices(data)
+        return
+      }
+      throw new Error("Backend failed to list services")
     } catch (error) {
-      console.error('[v0] Error fetching services:', error)
-      setError('Error al cargar los servicios')
+      console.warn('[v0] Error fetching live services:', error)
+      const mappedServices = localServices.map(s => ({
+        id: s.id,
+        name: s.name,
+        price: s.price,
+        duration_minutes: s.duration,
+        type: s.type === "package" ? "combo" as const : "individual" as const,
+        descriptions: s.features || [s.description],
+        is_active: true,
+        created_at: new Date().toISOString(),
+        image: null
+      }))
+      setServices(mappedServices)
     } finally {
       setLoading(false)
     }
@@ -74,24 +87,8 @@ export default function ServiciosPage() {
     try {
       setAddingToCart(service.id)
       
-      const response = await fetch(`${API_BASE_URL}/cart/add`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          serviceId: service.id
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to add to cart')
-      }
-
-      // Add to local cart state
-      addItem({
+      // Use cart context's addItem which handles backend fallback
+      await addItem({
         id: service.id,
         name: service.name,
         price: service.price,
@@ -99,7 +96,6 @@ export default function ServiciosPage() {
 
     } catch (error) {
       console.error('[v0] Error adding to cart:', error)
-      alert('Error al agregar al carrito')
     } finally {
       setAddingToCart(null)
     }
@@ -288,16 +284,18 @@ export default function ServiciosPage() {
               }}
             >
               {/* Top row: icon + name + price badge */}
-              <div className="flex items-center gap-3 w-full">
-                <Image
-                  src={getServiceIcon(service.id) || "/placeholder.svg"}
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 flex-shrink-0"
-                />
-                <span className="font-bold text-white whitespace-nowrap" style={{ fontFamily: 'Inter, sans-serif', fontSize: '22px', lineHeight: '28px' }}>{service.name}</span>
-                <span className="rounded-[6px] flex items-center justify-center flex-shrink-0 ml-auto" style={{ border: '1px solid #9AC138', padding: '6px 14px' }}>
+              <div className="flex items-start justify-between gap-3 w-full">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <Image
+                    src={getServiceIcon(service.id) || "/placeholder.svg"}
+                    alt=""
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 flex-shrink-0 mt-0.5"
+                  />
+                  <span className="font-bold text-white break-words line-clamp-2 capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '20px', lineHeight: '30px' }}>{service.name}</span>
+                </div>
+                <span className="rounded-[6px] flex flex-shrink-0 items-center justify-center" style={{ border: '1px solid #9AC138', padding: '6px 14px', height: 'fit-content' }}>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 500, color: '#FFFFFF', whiteSpace: 'nowrap' }}>
                     {formatPrice(service.price)}
                   </span>

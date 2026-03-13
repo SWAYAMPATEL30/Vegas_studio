@@ -9,6 +9,9 @@ import { Footer } from '@/components/footer'
 import { BlockedSlotsManager } from '@/components/blocked-slots-manager'
 import { ServicesManager } from '@/components/services-manager'
 import { CalendarSlotManager } from '@/components/calendar-slot-manager'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { services as localServicesData } from '@/lib/services-data'
 
 interface AdminSettings {
   id: number
@@ -59,9 +62,7 @@ interface Service {
   created_at: string
 }
 
-// API Base URL
-const API_BASE_URL = 'https://vegas-estudio-backend.onrender.com'
-// const API_BASE_URL = 'http://localhost:5000'
+import { API_BASE_URL } from "@/lib/api"
 
 export default function AdminPage() {
   const router = useRouter()
@@ -97,53 +98,131 @@ export default function AdminPage() {
     return token || localStorage.getItem('vegas_token')
   }
 
-  // Fetch all data on mount
+  // Fetch all data on mount and interval
   useEffect(() => {
-    const fetchData = async () => {
+    let intervalId: NodeJS.Timeout
+
+    const fetchData = async (isInitial = true) => {
       try {
-        setLoading(true)
-        setError(null)
+        if (isInitial) {
+          setLoading(true)
+          setError(null)
+        }
 
-        // Fetch appointments
-        await fetchAppointments()
-
-        // Fetch blocked slots
-        await fetchBlockedSlots()
-
-        // Fetch services
-        await fetchServices()
-
-        // Fetch booking settings
-        await fetchBookingSettings()
-
+        // Run fetches concurrently for speed
+        await Promise.allSettled([
+          fetchAppointments(),
+          fetchBlockedSlots(),
+          fetchServices(),
+          fetchBookingSettings()
+        ])
+        
       } catch (error) {
         console.error('[v0] Error fetching data:', error)
-        setError('Error al cargar los datos')
+        if (isInitial) setError('Error al cargar los datos')
       } finally {
-        setLoading(false)
+        if (isInitial) setLoading(false)
       }
     }
 
     if (role === 'admin') {
-      fetchData()
+      fetchData(true)
+      
+      // Auto-refresh every 15 seconds in background
+      intervalId = setInterval(() => {
+        fetchData(false)
+      }, 15000)
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
     }
   }, [role])
 
-  // Fetch appointments
+  // Fetch appointments — fetch from both backend and Firebase and merge
   const fetchAppointments = async () => {
     try {
-      const token = getAuthToken()
-      const response = await fetch(`${API_BASE_URL}/admin/appointments`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      let backendAppointments: Appointment[] = []
+      let firebaseAppointments: Appointment[] = []
+
+      // 1. Try fetching from Backend (PostgreSQL)
+      try {
+        const token = getAuthToken()
+        const response = await fetch(`${API_BASE_URL}/admin/appointments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          cache: 'no-store'
+        })
+
+        if (response.ok) {
+          backendAppointments = await response.json()
         }
+      } catch (backendErr) {
+        console.warn('[admin] Backend appointments failed:', backendErr)
+      }
+
+      // 2. ALWAYS fetch from Firebase (new bookings go here)
+      try {
+        let liveServices: any[] = localServicesData
+        try {
+           const svRes = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+           if (svRes.ok) liveServices = await svRes.json()
+        } catch (e) { }
+
+        const snapshot = await getDocs(collection(db, 'appointments'))
+        firebaseAppointments = snapshot.docs.map(doc => {
+          const d = doc.data()
+          return {
+            id: doc.id,
+            customer_name: d.userName || 'N/A',
+            customer_email: d.userEmail || '',
+            customer_phone: d.userPhone || '',
+            appointment_date: d.appointment_date || '',
+            start_time: d.start_time || '',
+            end_time: d.end_time || '',
+            total_duration_minutes: d.total_duration_minutes || 0,
+            status: d.status || 'pending',
+            rejection_reason: d.rejection_reason || null,
+            created_at: d.timestamp?.toDate?.()?.toISOString?.() || '',
+            appointment_services: (d.services || []).map((name: string) => {
+              const sData = liveServices.find(s => s.name === name)
+              return {
+                services: { 
+                  id: name, 
+                  name, 
+                  type: sData?.type === 'package' ? 'combo' : 'individual', 
+                  price: sData?.price || 0, 
+                  duration_minutes: sData?.duration_minutes || sData?.duration || 0 
+                }
+              }
+            })
+          }
+        })
+      } catch (fbErr) {
+        console.error('[admin] Firebase appointments failed:', fbErr)
+      }
+
+      // 3. Merge and Sort
+      const merged = [...backendAppointments, ...firebaseAppointments]
+      
+      // Sort newest to oldest as default view or by appointment_date
+      merged.sort((a, b) => {
+         const dateA = new Date(`${a.appointment_date}T${a.start_time || '00:00:00'}`).getTime()
+         const dateB = new Date(`${b.appointment_date}T${b.start_time || '00:00:00'}`).getTime()
+         // If dates are invalid, fall back to created_at
+         if (isNaN(dateA) || isNaN(dateB)) {
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+         }
+         return dateB - dateA
       })
 
-      if (!response.ok) throw new Error('Failed to fetch appointments')
-      const data = await response.json()
-      setAppointments(data)
+      setAppointments(merged)
+      if (merged.length === 0) {
+         // Optionally you could set an error if BOTH failed, but usually empty implies no bookings.
+      }
     } catch (error) {
-      console.error('[v0] Error fetching appointments:', error)
+      console.error('[v0] Fatal error fetching appointments:', error)
       setError('Error al cargar las citas')
     }
   }
@@ -155,29 +234,40 @@ export default function AdminPage() {
       const response = await fetch(`${API_BASE_URL}/admin/block-slots`, {
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        cache: 'no-store'
       })
 
       if (!response.ok) throw new Error('Failed to fetch blocked slots')
       const data = await response.json()
       setBlockedSlots(data)
     } catch (error) {
-      console.error('[v0] Error fetching blocked slots:', error)
-      setError('Error al cargar los horarios bloqueados')
+      console.warn('[admin] Could not fetch blocked slots:', error)
+      // Non-critical — just leave empty
     }
   }
 
-  // Fetch services
+  // Fetch services — try backend, fallback to local data
   const fetchServices = async () => {
     try {
-      setServicesLoading(true)
-      const response = await fetch(`${API_BASE_URL}/services`)
+      setServicesLoading(services.length === 0)
+      const response = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
       if (!response.ok) throw new Error('Failed to fetch services')
       const data = await response.json()
       setServices(data)
     } catch (error) {
-      console.error('[v0] Error fetching services:', error)
-      setError('Error al cargar los servicios')
+      console.warn('[admin] Backend services failed, using local data:', error)
+      const mapped: Service[] = localServicesData.map(s => ({
+        id: s.id,
+        name: s.name,
+        price: s.price,
+        duration_minutes: s.duration,
+        type: s.type === 'package' ? 'combo' : 'individual',
+        descriptions: s.features || [s.description],
+        is_active: true,
+        created_at: new Date().toISOString(),
+      }))
+      setServices(mapped)
     } finally {
       setServicesLoading(false)
     }
@@ -186,10 +276,13 @@ export default function AdminPage() {
   // Fetch booking settings
   const fetchBookingSettings = async () => {
     try {
-      // Since there's no GET endpoint for settings, we'll initialize with default
-      setSettings({ id: 1, booking_enabled: true })
+      const response = await fetch(`${API_BASE_URL}/booking-status`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('Failed to fetch booking status')
+      const bookingStatus = await response.json()
+      setSettings({ id: 1, booking_enabled: typeof bookingStatus === 'boolean' ? bookingStatus : (bookingStatus.enabled ?? bookingStatus.booking_enabled ?? true) })
     } catch (error) {
-      console.error('[v0] Error fetching settings:', error)
+      console.warn('[admin] Using local settings fallback:', error)
+      setSettings({ id: 1, booking_enabled: true })
     }
   }
 
@@ -283,8 +376,9 @@ export default function AdminPage() {
         },
         body: JSON.stringify({
           block_date: date,
-          start_time: formattedStartTime,
-          end_time: formattedEndTime,
+          start_time: isFullDay ? '00:00:00' : formattedStartTime,
+          end_time: isFullDay ? '23:59:59' : formattedEndTime,
+          is_full_day: isFullDay,
           reason: reason
         }),
       })
@@ -360,25 +454,41 @@ export default function AdminPage() {
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
     try {
       const token = getAuthToken()
-      const response = await fetch(`${API_BASE_URL}/admin/appointments/${appointmentId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: newStatus
+      
+      let isBackendSuccess = false;
+      let updatedStatus = newStatus;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/admin/appointments/${appointmentId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: newStatus
+          })
         })
-      })
 
-      if (!response.ok) throw new Error('Failed to update appointment status')
+        if (response.ok) {
+           isBackendSuccess = true;
+           const result = await response.json()
+           updatedStatus = result.appointment.status;
+        }
+      } catch (e) {
+         console.warn('[admin] Backend status update failed or unavailable, relying on Firebase');
+      }
 
-      const result = await response.json()
+      // If backend failed (or it was a Firebase document ID which Postgres doesn't recognize), update Firebase
+      if (!isBackendSuccess) {
+         const appointmentRef = doc(db, 'appointments', appointmentId);
+         await updateDoc(appointmentRef, { status: newStatus });
+      }
 
       // Update local state with the updated appointment
       setAppointments(
         appointments.map((apt) =>
-          apt.id === appointmentId ? { ...apt, status: result.appointment.status } : apt
+          apt.id === appointmentId ? { ...apt, status: updatedStatus } : apt
         )
       )
     } catch (err) {
@@ -386,6 +496,8 @@ export default function AdminPage() {
       setError('Error al actualizar cita')
     }
   }
+
+
 
   // Filter appointments
   const filteredAppointments = appointments.filter((apt) => {
@@ -672,7 +784,8 @@ export default function AdminPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Cliente</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Contacto</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Servicios</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Fecha y Hora</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Fecha</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Hora</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Duración</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Estado</th>
                       </tr>
@@ -706,10 +819,12 @@ export default function AdminPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <p className="font-medium">{appointment.appointment_date}</p>
+                              <p className="font-medium" style={{color:"black"}}>{appointment.appointment_date}</p>
+                            </td>
+                            <td className="px-6 py-4">
                               <p className="text-sm text-muted-foreground">{appointment.start_time} - {appointment.end_time}</p>
                             </td>
-                            <td className="px-6 py-4 text-sm">{appointment.total_duration_minutes} min</td>
+                            <td className="px-6 py-4 text-sm" style={{color:"black"}}>{appointment.total_duration_minutes} min</td>
                             <td className="px-6 py-4">
                               <select
                                 value={appointment.status}

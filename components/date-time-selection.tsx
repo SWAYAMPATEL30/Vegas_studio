@@ -14,6 +14,7 @@ interface DateTimeSelectionProps {
   onBack: () => void
   onConfirm: () => Promise<void>
   loading?: boolean
+  bookedSlots?: string[]
 }
 
 // Available date ranges (green in calendar image: 4-8 and 20-24)
@@ -39,6 +40,7 @@ export function DateTimeSelection({
   onBack,
   onConfirm,
   loading = false,
+  bookedSlots = [],
 }: DateTimeSelectionProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
@@ -126,39 +128,40 @@ export function DateTimeSelection({
   const days = getDaysInMonth(currentMonth)
 
   return (
-    <div className="w-full" style={{ background: "#1A2722", padding: "59px 0", minHeight: "881.33px" }}>
-      <div className="flex flex-col items-center gap-11">
+    <div className="w-full" style={{ background: "#1A2722", padding: "40px 0", minHeight: "600px" }}>
+      <div className="flex flex-col items-center gap-8 md:gap-11">
         {/* Title */}
-        <h2 className="text-4xl font-bold text-center text-white" style={{ fontSize: "32px", fontWeight: 700 }}>
+        <h2 className="text-2xl md:text-4xl font-bold text-center text-white px-4">
           Selecciona fecha y hora
         </h2>
 
-        {/* Calendar with Time slot */}
-        <div className="flex items-start gap-12 justify-center w-full px-8" style={{ maxWidth: '1000px' }}>
+        {/* Calendar and Info Container */}
+        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 lg:gap-12 justify-center w-full px-4 md:px-8 max-w-6xl mx-auto">
           
-          {/* LEFT: Calendar */}
-          <div className="flex flex-col gap-6">
+          {/* Calendar Section */}
+          <div className="flex flex-col gap-6 w-full max-w-[420px]">
             <div
-              className="bg-white rounded-[10px] flex flex-col shadow-lg flex-shrink-0"
-              style={{ width: "420px", height: "403.33px", padding: "10px", overflowY: "auto" }}
+              className="bg-white rounded-[10px] flex flex-col shadow-lg p-4 md:p-6"
+              style={{ width: "100%", minHeight: "403px" }}
             >
+              {/* ... calendar content ... */}
               {/* Month Navigation */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4 md:mb-6">
                 <button onClick={handlePrevMonth} className="p-1 hover:opacity-70 transition-opacity" style={{ color: '#1A2722' }}>
-                  <ChevronLeft className="w-6 h-6" />
+                  <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
                 </button>
-                <span className="font-semibold text-lg text-[#1A2722]">
+                <span className="font-semibold text-sm md:text-lg text-[#1A2722]">
                   {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </span>
                 <button onClick={handleNextMonth} className="p-1 hover:opacity-70 transition-opacity" style={{ color: '#1A2722' }}>
-                  <ChevronRight className="w-6 h-6" />
+                  <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
                 </button>
               </div>
 
               {/* Days of Week */}
               <div className="grid grid-cols-7 mb-2">
                 {daysOfWeek.map((day, i) => (
-                  <div key={`${day}-${i}`} className="text-center font-medium text-xs" style={{ color: '#9AC138', lineHeight: '20px' }}>
+                  <div key={`${day}-${i}`} className="text-center font-medium text-[10px] md:text-xs" style={{ color: '#9AC138', lineHeight: '20px' }}>
                     {day}
                   </div>
                 ))}
@@ -176,12 +179,12 @@ export function DateTimeSelection({
                         const isAvailable = isDateAvailable(day)
                         
                         return (
-                          <div key={`${weekIndex}-${dayIndex}`} className="flex items-center justify-center" style={{ height: '32px' }}>
+                          <div key={`${weekIndex}-${dayIndex}`} className="flex items-center justify-center h-8 md:h-8">
                             {day ? (
                               <button
                                 onClick={() => handleDateClick(day)}
                                 disabled={!isAvailable}
-                                className="w-7 h-7 flex items-center justify-center rounded transition-all font-medium text-sm"
+                                className="w-7 h-7 flex items-center justify-center rounded transition-all font-medium text-xs md:text-sm"
                                 style={{
                                   color: isSelected ? '#FFFFFF' : isAvailable ? '#9AC138' : '#B0B0B0',
                                   background: isSelected ? '#9AC138' : 'transparent',
@@ -202,25 +205,30 @@ export function DateTimeSelection({
               </div>
 
               {/* Time selector dropdown */}
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
-                <label className="text-sm text-[#1A2722] font-medium">Hora</label>
-                  <div className="flex items-center gap-3">
-                    <select 
-                      value={selectedTime || '8:00 AM'} 
-                      onChange={(e) => onTimeChange(e.target.value)}
-                      className="px-3 py-2 rounded text-sm text-center font-medium"
-                      style={{ background: '#E8E8E0', color: '#1A2722', border: 'none', width: '120px', cursor: 'pointer' }}
-                    >
-                      {timeSlots.map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="text-xs text-[#1A2722]">
-                      Fin: {computeEndTime(selectedTime || timeSlots[0], totalDuration)}
-                    </div>
-                  </div>
+              <div className="flex flex-col sm:flex-row items-center justify-between mt-6 pt-4 border-t border-[#E8E8E0] gap-3">
+                <label className="text-sm md:text-[15px] text-[#1A2722] font-normal">Hora</label>
+                <select 
+                  value={selectedTime || ''} 
+                  onChange={(e) => onTimeChange(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-1.5 rounded text-sm md:text-[15px] font-normal outline-none cursor-pointer"
+                  style={{ 
+                    backgroundColor: '#E8E8E0', 
+                    color: '#1A2722', 
+                    border: 'none', 
+                    minWidth: '120px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <option value="" disabled>Selecciona hora</option>
+                  {timeSlots.map((time) => {
+                    const isBooked = bookedSlots.includes(time);
+                    return (
+                      <option key={time} value={time} disabled={isBooked}>
+                        {time} {isBooked ? '(Reservado)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
             </div>
 
@@ -239,17 +247,17 @@ export function DateTimeSelection({
         </div>
 
         {/* Bottom Section - Selected Services */}
-        <div className="w-full text-white" style={{ width: '1440px', paddingLeft: '550px', paddingRight: '550px', gap: '9px' }}>
+        <div className="w-full text-white px-4 max-w-2xl mx-auto">
           {/* Selected Services */}
           <div className="text-center">
             <p className="mb-4 text-base font-medium">Servicios solicitados</p>
-            <div className="flex flex-wrap items-center justify-center gap-6">
+            <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6">
               {selectedServices.map((service) => (
-                <div key={service} className="flex items-center gap-2 px-4 py-2 rounded-lg" style={{ background: 'rgba(255, 255, 255, 0.1)' }}>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center font-bold" style={{ background: '#FDB400', color: '#1A2722' }}>
+                <div key={service} className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg" style={{ background: 'rgba(255, 255, 255, 0.1)' }}>
+                  <div className="w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center font-bold" style={{ background: '#FDB400', color: '#1A2722', fontSize: '10px' }}>
                     ✓
                   </div>
-                  <span className="text-sm font-medium">{service}</span>
+                  <span className="text-xs md:text-sm font-medium">{service}</span>
                 </div>
               ))}
             </div>

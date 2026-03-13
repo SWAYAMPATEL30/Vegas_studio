@@ -3,6 +3,7 @@
 import React from "react"
 import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import { auth, googleProvider, signInWithPopup } from "@/lib/firebase"
 
 interface LoginModalProps {
   isOpen: boolean
@@ -82,21 +83,41 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     handleGoogleAuthClick()
   }
 
-  const handleGoogleAuthClick = () => {
+  const handleGoogleAuthClick = async () => {
     setLoading(true)
     try {
-      // Simplified Google auth - no external SDK needed
-      // Stores auth session to allow users to proceed with booking
-      console.log('[v0] Authenticating with Google (simplified)')
+      console.log('[v0] Authenticating with Google (Firebase)')
       
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
       sessionStorage.setItem('isAuthenticated', 'true')
       sessionStorage.setItem('authProvider', 'google')
-      sessionStorage.setItem('userEmail', 'usuario@gmail.com')
+      sessionStorage.setItem('userEmail', user.email || 'usuario@gmail.com')
       
-      onSuccess?.()
-    } catch (error) {
+      localStorage.setItem('vegas_user', JSON.stringify({ email: user.email, name: user.displayName }));
+      localStorage.setItem('vegas_token', await user.getIdToken());
+      
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        window.location.reload()
+      }
+    } catch (error: any) {
       console.error('[v0] Error with Google auth:', error)
-      alert('Error al autenticar con Google. Intenta con otro método.')
+      
+      let errorMessage = 'Error desconocido al autenticar con Google.';
+      if (error?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'El proceso fue cancelado. Por favor, intenta de nuevo y no cierres la ventana.';
+      } else if (error?.code === 'auth/operation-not-allowed') {
+        errorMessage = 'El inicio de sesión con Google no está habilitado en Firebase. Ve a Firebase Console -> Authentication -> Sign-in method y habilita Google.';
+      } else if (error?.code === 'auth/configuration-not-found') {
+        errorMessage = 'Error de configuración de Firebase (auth/configuration-not-found). Por favor, verifica que las llaves en tu archivo .env sean las correctas y que el proyecto exista en Firebase.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false)
     }

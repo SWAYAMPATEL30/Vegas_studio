@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Clock, Plus } from "lucide-react"
@@ -12,10 +12,14 @@ import { LoginModal } from "@/components/login-modal"
 import { useCart } from "@/lib/cart-context"
 import { services, formatPrice } from "@/lib/services-data"
 
+import { API_BASE_URL } from "@/lib/api"
+
 export default function HomePage() {
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const { addItem } = useCart()
+  
+  // Reverted to keeping these 3 specific service constants all the time based on user request
   const packages = services.filter((s) => s.type === "package")
 
   return (
@@ -73,7 +77,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex-1 mt-[19px]" style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "20px", color: "#FFFFFF" }}>
                   <ul className="space-y-1">
-                    {service.features?.map((feature, i) => (
+                    {service.features?.map((feature: string, i: number) => (
                       <li key={i} className="flex items-start gap-2">
                         <span className="flex-shrink-0 mt-0.5">{"\u2022"}</span>
                         <span>{feature}</span>

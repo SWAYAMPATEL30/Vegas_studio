@@ -19,12 +19,12 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end pt-20 pr-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center md:items-start md:justify-end pt-20 px-4">
       {/* Backdrop */}
-      <div className="fixed inset-0" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/20" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl w-80 p-6 text-popover-foreground">
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-[320px] p-6 text-popover-foreground">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"

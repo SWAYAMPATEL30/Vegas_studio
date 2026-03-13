@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from 'next/navigation'
+import { AlertCircle } from "lucide-react"
+import { db } from "@/lib/firebase"
+import { collection, addDoc, getDocs, query, where, Timestamp } from "firebase/firestore"
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
 import { Header } from "@/components/header"
@@ -15,8 +18,8 @@ import { DateTimeSelection } from "@/components/date-time-selection"
 import FullScreenLoader from "@/components/fullscreen-loader"
 
 
-// API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vegas-estudio-backend.onrender.com'
+import { API_BASE_URL } from "@/lib/api"
+import { services as localServices } from "@/lib/services-data"
 
 interface Service {
   id: string
@@ -33,7 +36,7 @@ interface Service {
 export default function AgendarPage() {
   const router = useRouter()
   const { token, user } = useAuth()
-  const { items: cartItems, addItem, removeItem } = useCart()
+  const { items: cartItems, addItem, removeItem, clearCart } = useCart()
 
   useEffect(() => {
     // if not logged in (no token or user), redirect to auth
@@ -59,11 +62,114 @@ export default function AgendarPage() {
   const [bookingLoading, setBookingLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [appointmentDetails, setAppointmentDetails] = useState<any>(null)
+  const [bookedSlots, setBookedSlots] = useState<string[]>([])
+  const [isBookingEnabled, setIsBookingEnabled] = useState(true)
+  const [adminBlockedSlots, setAdminBlockedSlots] = useState<any[]>([])
 
-  // Fetch services on mount
+  useEffect(() => {
+    if (selectedDate && currentStep === 2) {
+      const fetchBookedSlots = async () => {
+        try {
+          const yyyy = selectedDate.getFullYear()
+          const mm = String(selectedDate.getMonth() + 1).padStart(2, '0')
+          const dd = String(selectedDate.getDate()).padStart(2, '0')
+          const appointmentDate = `${yyyy}-${mm}-${dd}`
+
+          const q = query(collection(db, 'appointments'), where('appointment_date', '==', appointmentDate))
+          const snapshot = await getDocs(q)
+          
+          const existingIntervals: { start: number, end: number }[] = []
+          snapshot.forEach(doc => {
+            const data = doc.data()
+            if (data.status !== 'cancelled' && data.status !== 'rejected') {
+              let startMinutes = 0
+              let duration = data.total_duration_minutes || 15
+              
+              if (data.start_time) {
+                 const [h, m] = data.start_time.split(':').map(Number)
+                 startMinutes = h * 60 + m
+              } else if (data.start_time_label) {
+                 const [time, modifier] = data.start_time_label.split(' ')
+                 let [h, m] = time.split(':').map(Number)
+                 if (modifier === 'PM' && h < 12) h += 12
+                 if (modifier === 'AM' && h === 12) h = 0
+                 startMinutes = h * 60 + (m || 0)
+              }
+              if (startMinutes > 0) {
+                 existingIntervals.push({ start: startMinutes, end: startMinutes + duration })
+              }
+            }
+          })
+
+          // Add admin blocked slots
+          const dateAdminBlocks = adminBlockedSlots.filter(s => s.block_date === appointmentDate || s.slot_date === appointmentDate)
+          for (const block of dateAdminBlocks) {
+            if (block.is_full_day) {
+               existingIntervals.push({ start: 0, end: 24 * 60 })
+            } else if (block.start_time && block.end_time) {
+               const [sh, sm] = block.start_time.split(':').map(Number)
+               const [eh, em] = block.end_time.split(':').map(Number)
+               existingIntervals.push({ start: sh * 60 + sm, end: eh * 60 + em })
+            }
+          }
+
+          const currentlySelectedDuration = getTotalDuration() || 15
+          const timeSlots = [
+            "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
+            "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
+            "6:00 PM", "7:00 PM", "8:00 PM"
+          ]
+
+          const slots: string[] = []
+          for (const label of timeSlots) {
+             const [time, modifier] = label.split(' ')
+             let [h, m] = time.split(':').map(Number)
+             if (modifier === 'PM' && h < 12) h += 12
+             if (modifier === 'AM' && h === 12) h = 0
+             const testStart = h * 60 + (m || 0)
+             const testEnd = testStart + currentlySelectedDuration
+
+             const overlap = existingIntervals.some(inv => testStart < inv.end && testEnd > inv.start)
+             if (overlap) {
+                slots.push(label)
+             }
+          }
+          setBookedSlots(slots)
+        } catch (err) {
+          console.error("Error fetching booked slots from firebase", err)
+        }
+      }
+      fetchBookedSlots()
+    }
+  }, [selectedDate, currentStep, cartItems, services]) // Dependencies to recalculate when cart items duration change
+
+  // Fetch services, booking status, and blocked slots on mount
   useEffect(() => {
     fetchServices()
+    fetchBookingStatus()
+    fetchAdminBlockedSlots()
   }, [])
+
+  const fetchAdminBlockedSlots = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/block-slots`, { cache: 'no-store' })
+      if (res.ok) {
+        setAdminBlockedSlots(await res.json())
+      }
+    } catch (err) { }
+  }
+
+  const fetchBookingStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/booking-status`, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setIsBookingEnabled(data.enabled)
+      }
+    } catch (err) {
+      console.warn("Could not fetch booking status", err)
+    }
+  }
 
   // Fetch cart items (preselect services) when token/user available
   // useEffect(() => {
@@ -103,13 +209,27 @@ export default function AgendarPage() {
 
   const fetchServices = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/services`)
-      if (!response.ok) throw new Error('Failed to fetch services')
-      const data = await response.json()
-      setServices(data)
+      const res = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setServices(data)
+        return
+      }
+      throw new Error("Backend failed to fetch services")
     } catch (error) {
-      console.error('[v0] Error fetching services:', error)
-      setError('Error al cargar los servicios')
+      console.warn('[v0] Error fetching live services, falling back to local static data:', error)
+      const mappedServices = localServices.map(s => ({
+        id: s.id,
+        name: s.name,
+        price: s.price,
+        duration_minutes: s.duration,
+        type: s.type === "package" ? "combo" as const : "individual" as const,
+        descriptions: s.features || [s.description],
+        is_active: true,
+        created_at: new Date().toISOString(),
+        image: null
+      }))
+      setServices(mappedServices)
     }
   }
 
@@ -165,8 +285,97 @@ export default function AgendarPage() {
     setError(null)
 
     try {
-      // Format date and time for API
-      const appointmentDate = selectedDate.toISOString().split('T')[0]
+      const yyyy = selectedDate.getFullYear()
+      const mm = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const dd = String(selectedDate.getDate()).padStart(2, '0')
+      const appointmentDate = `${yyyy}-${mm}-${dd}`
+
+      // ========== COLLISION CHECK ==========
+      const collisionCheckPromise = (async () => {
+        const q = query(
+          collection(db, 'appointments'),
+          where('appointment_date', '==', appointmentDate)
+        )
+        const snapshot = await getDocs(q)
+
+        let testStart = 0
+        const currentlySelectedDuration = getTotalDuration() || 15
+
+        if (selectedTime.includes('AM') || selectedTime.includes('PM')) {
+          const [time, modifier] = selectedTime.split(' ')
+          let [hours, minutes] = time.split(':')
+          let hoursNum = parseInt(hours)
+          if (modifier === 'PM' && hoursNum < 12) hoursNum += 12
+          if (modifier === 'AM' && hoursNum === 12) hoursNum = 0
+          testStart = hoursNum * 60 + parseInt(minutes || '0')
+        }
+        const testEnd = testStart + currentlySelectedDuration
+
+        // Client-side overlap filter 
+        const conflict = snapshot.docs.some(doc => {
+          const data = doc.data()
+          if (data.status === 'cancelled' || data.status === 'rejected') return false
+          
+          let startMinutes = 0
+          let duration = data.total_duration_minutes || 15
+          
+          if (data.start_time) {
+             const [h, m] = data.start_time.split(':').map(Number)
+             startMinutes = h * 60 + m
+          } else if (data.start_time_label) {
+             const [time, modifier] = data.start_time_label.split(' ')
+             let [h, m] = time.split(':').map(Number)
+             if (modifier === 'PM' && h < 12) h += 12
+             if (modifier === 'AM' && h === 12) h = 0
+             startMinutes = h * 60 + (m || 0)
+          }
+
+          if (startMinutes > 0) {
+             const existingEnd = startMinutes + duration
+             return testStart < existingEnd && testEnd > startMinutes
+          }
+          return false
+        })
+
+        if (conflict) return { conflict, snapshot }
+
+        // Admin Block Filter Check
+        const dateAdminBlocks = adminBlockedSlots.filter(s => s.block_date === appointmentDate || s.slot_date === appointmentDate)
+        const blockConflict = dateAdminBlocks.some(block => {
+          if (block.is_full_day) return true;
+          if (block.start_time && block.end_time) {
+             const [sh, sm] = block.start_time.split(':').map(Number)
+             const [eh, em] = block.end_time.split(':').map(Number)
+             const blockStart = sh * 60 + sm
+             const blockEnd = eh * 60 + em
+             return testStart < blockEnd && testEnd > blockStart
+          }
+          return false
+        })
+
+        return { conflict: blockConflict, snapshot }
+      })()
+
+      // Add 5-second timeout to prevent infinite hang
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      )
+
+      let conflict = false
+      try {
+        const result = await Promise.race([collisionCheckPromise, timeoutPromise])
+        conflict = result.conflict
+
+        if (conflict) {
+          setSelectedTime("")
+          setBookingLoading(false)
+          setError('¡Este horario se superpone con una reserva existente! Por favor selecciona otro.')
+          return
+        }
+      } catch (checkErr) {
+        console.warn('[booking] Collision check failed, proceeding:', checkErr)
+      }
+      // ========== END COLLISION CHECK ==========
 
       // Parse time (assuming format like "2:00 PM" or "14:00")
       let startTime = selectedTime
@@ -189,28 +398,32 @@ export default function AgendarPage() {
       endDate.setHours(startHour, startMinute + totalMinutes, 0)
       const endTime = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`
 
-      const response = await fetch(`${API_BASE_URL}/appointments/book`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${tokenValue}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          appointment_date: appointmentDate,
-          start_time: startTime,
-          end_time: endTime,
-          total_duration_minutes: totalMinutes
-        }),
-      })
+      const userJSON = localStorage.getItem('vegas_user')
+      const userInfo = userJSON ? JSON.parse(userJSON) : {}
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to book appointment')
+      // Write directly to Firebase
+      const appointmentObj = {
+        appointment_date: appointmentDate,
+        start_time_label: selectedTime,
+        start_time: startTime,
+        end_time: endTime,
+        total_duration_minutes: totalMinutes,
+        services: selectedServices.map(id => getServiceName(id)),
+        userEmail: userInfo.email || 'usuario@gmail.com',
+        userName: userInfo.name || 'Usuario',
+        userPhone: userInfo.phone || userInfo.telefono || '',
+        status: 'pending',
+        timestamp: Timestamp.now(),
+        total_price: totalPrice
       }
 
-      const data = await response.json()
-      // store appointment details from API
-      setAppointmentDetails(data.appointment || data)
+      await addDoc(collection(db, 'appointments'), appointmentObj);
+
+      // Empty the cart after successful booking
+      await clearCart();
+
+      // set appointment details to show in confirmation modal
+      setAppointmentDetails(appointmentObj)
       setCurrentStep(3)
       setIsConfirmationOpen(true)
 
@@ -294,7 +507,7 @@ export default function AgendarPage() {
       />
 
       {/* Step Indicator Section */}
-      <section className="bg-white w-full" style={{ height: "244px" }}>
+      <section className="bg-white w-full border-b border-gray-100 min-h-[160px] md:h-[244px] py-8 md:py-0">
         <div className="container mx-auto max-w-6xl h-full flex items-center justify-center">
           <StepIndicator currentStep={currentStep} />
         </div>
@@ -332,7 +545,22 @@ export default function AgendarPage() {
             </div>
           )}
 
-          {currentStep === 1 && isLoggedIn && (
+          {currentStep === 1 && isLoggedIn && !isBookingEnabled && (
+            <div className="text-center py-16 bg-white rounded-lg shadow-sm border p-8 max-w-2xl mx-auto">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-[#FDB400]" />
+              </div>
+              <h2 className="text-2xl font-bold mb-4">
+                Agenda Cerrada Temporalmente
+              </h2>
+              <p className="text-muted-foreground">
+                Por el momento, no estamos aceptando nuevas reservas online. 
+                Por favor, inténtalo de nuevo más tarde o contáctanos directamente.
+              </p>
+            </div>
+          )}
+
+          {currentStep === 1 && isLoggedIn && isBookingEnabled && (
             <ServiceSelection
               services={services}
               selectedServices={selectedServices}
@@ -342,17 +570,20 @@ export default function AgendarPage() {
           )}
 
           {currentStep === 2 && isLoggedIn && (
-            <DateTimeSelection
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              selectedServices={selectedServices.map(id => getServiceName(id))}
-              totalDuration={getTotalDuration()}
-              onDateChange={setSelectedDate}
-              onTimeChange={setSelectedTime}
-              onBack={handleBack}
-              onConfirm={handleConfirm}
-              loading={bookingLoading}
-            />
+            <div className="w-full">
+              <DateTimeSelection
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                selectedServices={selectedServices.map(id => getServiceName(id))}
+                totalDuration={getTotalDuration()}
+                onDateChange={setSelectedDate}
+                onTimeChange={setSelectedTime}
+                onBack={handleBack}
+                onConfirm={handleConfirm}
+                loading={bookingLoading}
+                bookedSlots={bookedSlots}
+              />
+            </div>
           )}
         </div>
       </section>
@@ -368,11 +599,11 @@ export default function AgendarPage() {
           setIsConfirmationOpen(false)
           router.push('/')
         }}
-        services={selectedServices.map(id => getServiceName(id))}
+        services={appointmentDetails?.services || selectedServices.map(id => getServiceName(id))}
         date={formatDate(selectedDate)}
         time={formatTime(selectedTime)}
         appointmentDetails={appointmentDetails}
-        price={totalPrice}
+        price={appointmentDetails?.total_price || totalPrice}
       />
     </div>
   )

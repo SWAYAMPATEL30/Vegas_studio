@@ -6,10 +6,10 @@ import { useAuth } from "@/lib/auth-context"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 
-// API Base URL
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://vegas-estudio-backend.onrender.com"
+import { API_BASE_URL } from "@/lib/api"
+import { db } from "@/lib/firebase"
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { services as localServicesData } from "@/lib/services-data"
 
 /* ---------------- TYPES ---------------- */
 
@@ -75,6 +75,7 @@ export default function MyAppointmentsPage() {
     const fetchAppointments = async () => {
       try {
         setLoading(true)
+        setError(null)
 
         const res = await fetch(`${API_BASE_URL}/appointments/my`, {
           headers: {
@@ -83,15 +84,70 @@ export default function MyAppointmentsPage() {
         })
 
         if (!res.ok) {
-          const text = await res.text()
-          throw new Error(text || "Failed to fetch appointments")
+          throw new Error("Backend invalid token or error")
         }
 
         const data = await res.json()
         setAppointments(data)
       } catch (err) {
-        console.error("[appointments] fetch error:", err)
-        setError("No se pudieron cargar tus citas")
+        console.warn("[appointments] backend fetch failed, using firebase fallback:", err)
+        // Fallback to Firebase using the user's email
+        try {
+          const userJSON = localStorage.getItem('vegas_user')
+          const userInfo = userJSON ? JSON.parse(userJSON) : {}
+          const userEmail = userInfo.email || user?.email
+
+          if (!userEmail) {
+             setAppointments([])
+             return
+          }
+
+          const q = query(
+            collection(db, 'appointments'),
+            where('userEmail', '==', userEmail)
+          )
+          const snapshot = await getDocs(q)
+          
+          let liveServices: any[] = localServicesData
+          try {
+             const svRes = await fetch(`${API_BASE_URL}/services`)
+             if (svRes.ok) liveServices = await svRes.json()
+          } catch (e) { console.warn('Failed to fetch live services, using static backup') }
+
+          const firebaseAppointments: Appointment[] = snapshot.docs.map(doc => {
+            const d = doc.data()
+            return {
+              id: doc.id,
+              appointment_date: d.appointment_date || '',
+              start_time: d.start_time || '',
+              end_time: d.end_time || '',
+              total_duration_minutes: d.total_duration_minutes || 0,
+              status: d.status || 'pending',
+              rejection_reason: null,
+              created_at: d.timestamp?.toDate?.()?.toISOString?.() || '',
+              appointment_services: (d.services || []).map((name: string) => {
+                const sData = liveServices.find(s => s.name === name)
+                return {
+                  services: { 
+                    id: name, 
+                    name, 
+                    type: sData?.type === 'package' ? 'combo' : 'individual', 
+                    price: sData?.price || 0, 
+                    duration_minutes: sData?.duration_minutes || sData?.duration || 0 
+                  }
+                }
+              })
+            }
+          })
+          
+          // Sort by newest first
+          firebaseAppointments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          
+          setAppointments(firebaseAppointments)
+        } catch (fbErr) {
+          console.error("[appointments] firebase fetch error:", fbErr)
+          setError("No se pudieron cargar tus citas")
+        }
       } finally {
         setLoading(false)
       }
@@ -177,6 +233,10 @@ export default function MyAppointmentsPage() {
                     <div>
                       <p className="font-semibold text-lg">
                         {formatDate(appt.appointment_date)}
+                      </p>
+                      {/* show raw date value as well for clarity */}
+                      <p className="text-xs text-muted-foreground">
+                        <em>{appt.appointment_date}</em>
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {formatTime(appt.start_time)} –{" "}

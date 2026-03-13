@@ -2,9 +2,10 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { API_BASE_URL } from "@/lib/api"
 
-// Base API URL - change this to your backend URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vegas-estudio-backend.onrender.com'
+// Admin login email (and identifier) can be configured via environment variable
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@vegas.com'
 
 type User = {
   id: string
@@ -75,72 +76,131 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const register = async (payload: any) => {
-    const res = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(text || 'Registration failed')
+      if (!res.ok) {
+        const text = await res.text()
+        let errorMessage = 'Error al registrar'
+        try {
+          const json = JSON.parse(text)
+          errorMessage = json.message || errorMessage
+        } catch (e) {
+          errorMessage = text || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
+      const data = await res.json()
+      if (data.role === 'admin') {
+        persist({ role: 'admin' })
+      } else {
+        persist({ role: data.role || 'client', token: data.token, user: data.user || null })
+      }
+
+      router.push('/')
+    } catch (err: any) {
+      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+        throw new Error('El servidor backend no está disponible. Por favor usa "Continuar con Google" para registrarte.')
+      }
+      throw err
     }
-
-    const data = await res.json()
-    // assume registration returns token+user+role similar to login; if not, just redirect
-    if (data.role === 'admin') {
-      persist({ role: 'admin' })
-    } else {
-      persist({ role: data.role || 'client', token: data.token, user: data.user || null })
-    }
-
-    router.push('/')
   }
 
   const login = async (payload: any) => {
-    // Check if it's the admin email
-    const isAdmin = payload.identifier === 'admin@vegas.com' || payload.email === 'admin@vegas.com'
-    
-    let url, bodyData
-    
+    // determine if credentials correspond to the admin account
+    const identifier = payload.identifier || payload.email
+    const isAdmin = identifier === ADMIN_EMAIL
+
+    // Handle admin login
     if (isAdmin) {
-      // For admin login, use the admin login endpoint with email and password
-      url = `${API_BASE_URL}/auth/admin/login`
-      bodyData = {
-        email: payload.identifier || payload.email,
-        password: payload.password
+      try {
+        const url = `${API_BASE_URL}/auth/admin/login`
+        const bodyData = { email: identifier, password: payload.password }
+        console.log('[auth] admin login request to', url)
+
+        let res: Response
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData),
+          })
+        } catch (networkErr) {
+          // ONLY network errors (backend truly offline) → local fallback
+          console.warn('[auth] Backend unreachable, using local admin auth')
+          localStorage.setItem('vegas_role', 'admin')
+          localStorage.setItem('vegas_token', 'local-admin-token')
+          setRole('admin')
+          setToken('local-admin-token')
+          setUser(null)
+          router.push('/admin')
+          return
+        }
+
+        if (!res.ok) {
+          // Backend responded but rejected credentials
+          const text = await res.text()
+          let errorMessage = 'Error en credenciales de administrador'
+          try {
+            const json = JSON.parse(text)
+            errorMessage = json.message || errorMessage
+          } catch (e) {
+            errorMessage = text || errorMessage
+          }
+          throw new Error(errorMessage)
+        }
+
+        const data = await res.json()
+        localStorage.setItem('vegas_role', data.role)
+        localStorage.setItem('vegas_token', data.token)
+        setRole(data.role)
+        setToken(data.token)
+        setUser(null)
+        router.push('/admin')
+        return
+      } catch (err: any) {
+        // If it's a credential error, propagate it; don't use fallback
+        throw err
       }
-    } else {
-      // For regular login
-      url = `${API_BASE_URL}/auth/login`
-      bodyData = payload
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bodyData),
-    })
+    // Regular user login
+    try {
+      const url = `${API_BASE_URL}/auth/login`
+      console.log('[auth] login request to', url, 'body:', payload)
 
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(text || 'Login failed')
-    }
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
-    const data = await res.json()
+      if (!res.ok) {
+        const text = await res.text()
+        let errorMessage = 'Error al iniciar sesión'
+        try {
+          const json = JSON.parse(text)
+          errorMessage = json.message || errorMessage
+        } catch (e) {
+          errorMessage = text || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
 
-    if (data.role === 'admin') {
-      // Store both token and role for admin
-      localStorage.setItem('vegas_role', data.role)
-      localStorage.setItem('vegas_token', data.token)
-      setRole(data.role)
-      setToken(data.token)
-      setUser(null)
-    } else {
+      const data = await res.json()
       persist({ role: data.role || 'client', token: data.token, user: data.user || data })
+      router.push('/')
+    } catch (err: any) {
+      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+        throw new Error('El servidor backend no está disponible. Por favor usa "Continuar con Google" para iniciar sesión, o contacta al administrador.')
+      }
+      throw err
     }
-
-    router.push('/')
   }
 
   const logout = () => {

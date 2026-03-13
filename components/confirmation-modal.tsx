@@ -28,6 +28,8 @@ export function ConfirmationModal({
     return `$ ${p.toLocaleString("es-CO")} COP`
   }
 
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -98,6 +100,8 @@ export function ConfirmationModal({
 
           {/* Action Buttons */}
           <div className="flex flex-col gap-3">
+
+
             <Link
               href="/"
               className="group w-full bg-[#FDB400] hover:bg-[#E8A500] text-[#1A2722] font-semibold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
@@ -107,12 +111,13 @@ export function ConfirmationModal({
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
             
-            <button
+            <Link
+              href="/myappointments"
               onClick={onClose}
-              className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2 px-4 rounded-xl transition-all duration-300 border border-white/20"
+              className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-4 rounded-xl transition-all duration-300 border border-white/20 text-center"
             >
               Ver detalles de mi cita
-            </button>
+            </Link>
           </div>
 
           {/* Reference Number (if available) */}

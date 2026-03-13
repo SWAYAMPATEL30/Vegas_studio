@@ -8,6 +8,7 @@ import { X, Plus, Calendar, Clock, Trash2 } from 'lucide-react'
 interface BlockedSlot {
   id: string
   slot_date: string
+  block_date?: string
   start_time: string | null
   end_time: string | null
   reason: string
@@ -53,7 +54,24 @@ export function BlockedSlotsManager({
     setShowForm(false)
   }
 
-  const sortedSlots = [...blockedSlots].sort((a, b) => new Date(a.slot_date).getTime() - new Date(b.slot_date).getTime())
+  const sortedSlots = [...blockedSlots].sort((a, b) => new Date(a.block_date || a.slot_date).getTime() - new Date(b.block_date || b.slot_date).getTime())
+
+  const timeOptions = [
+    { label: "8:00 AM", value: "08:00" },
+    { label: "9:00 AM", value: "09:00" },
+    { label: "10:00 AM", value: "10:00" },
+    { label: "11:00 AM", value: "11:00" },
+    { label: "12:00 PM", value: "12:00" },
+    { label: "1:00 PM", value: "13:00" },
+    { label: "2:00 PM", value: "14:00" },
+    { label: "3:00 PM", value: "15:00" },
+    { label: "4:00 PM", value: "16:00" },
+    { label: "5:00 PM", value: "17:00" },
+    { label: "6:00 PM", value: "18:00" },
+    { label: "7:00 PM", value: "19:00" },
+    { label: "8:00 PM", value: "20:00" },
+    { label: "9:00 PM", value: "21:00" }
+  ]
 
   return (
     <div className="space-y-6">
@@ -117,25 +135,33 @@ export function BlockedSlotsManager({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Hora de inicio</label>
-                  <input
-                    type="time"
+                  <select
                     value={formData.startTime}
                     onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                     required={!isFullDay}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     style={{ color: "black" }}
-                  />
+                  >
+                    <option value="" disabled>Selecciona inicio...</option>
+                    {timeOptions.slice(0, -1).map((t) => (
+                      <option key={`start-${t.value}`} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Hora de fin</label>
-                  <input
-                    type="time"
+                  <select
                     value={formData.endTime}
                     onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                     required={!isFullDay}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     style={{ color: "black" }}
-                  />
+                  >
+                    <option value="" disabled>Selecciona fin...</option>
+                    {timeOptions.map((t) => (
+                      <option key={`end-${t.value}`} value={t.value} disabled={formData.startTime ? t.value <= formData.startTime : false}>{t.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}
@@ -196,7 +222,7 @@ export function BlockedSlotsManager({
         ) : (
           <div className="divide-y">
             {sortedSlots.map((slot) => {
-              const slotDate = new Date(slot.slot_date)
+              const slotDate = new Date(slot.block_date || slot.slot_date)
               const formattedDate = slotDate.toLocaleDateString('es-ES', {
                 weekday: 'long',
                 day: 'numeric',
@@ -219,7 +245,17 @@ export function BlockedSlotsManager({
                       <div className="flex items-center gap-3 ml-8 text-sm text-gray-600 mb-2">
                         <Clock className="w-4 h-4" />
                         <span>
-                          {slot.start_time} - {slot.end_time}
+                          {(() => {
+                            const formatTime = (t: string | null) => {
+                              if (!t) return ''
+                              const [h, m] = t.split(':')
+                              let hours = parseInt(h)
+                              const ampm = hours >= 12 ? 'PM' : 'AM'
+                              hours = hours % 12 || 12
+                              return `${hours}:${m} ${ampm}`
+                            }
+                            return `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`
+                          })()}
                         </span>
                       </div>
                     )}

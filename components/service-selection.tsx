@@ -31,28 +31,20 @@ function ServiceCard({
   if (!mounted) {
     return (
       <div
-        className="agendar-service-card relative rounded-[10px] flex flex-col"
+        className="agendar-service-card relative rounded-[10px] flex flex-col w-full max-w-[330px] min-h-[180px] md:h-[200px] p-4 md:p-6 gap-3"
         style={{
-          width: "330px",
-          height: "200px",
-          borderRadius: "10px",
-          paddingTop: "28px",
-          paddingRight: "20px",
-          paddingBottom: "28px",
-          paddingLeft: "26px",
-          gap: "12px",
           background: 'linear-gradient(145deg, #1A2722 0%, #232F2A 100%)',
         }}
       >
-        <div className="flex items-center justify-between w-full pr-8">
-          <div className="flex items-center gap-[7px]">
-            <div className="w-8 h-8 bg-gray-700 rounded-full animate-pulse" />
-            <div className="w-24 h-6 bg-gray-700 rounded animate-pulse" />
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 md:w-8 md:h-8 bg-gray-700 rounded-full animate-pulse" />
+            <div className="w-16 md:w-24 h-5 md:h-6 bg-gray-700 rounded animate-pulse" />
           </div>
-          <div className="w-16 h-8 bg-gray-700 rounded animate-pulse" />
+          <div className="w-12 md:w-16 h-6 md:h-8 bg-gray-700 rounded animate-pulse" />
         </div>
-        <div className="w-full h-12 bg-gray-700 rounded animate-pulse mt-2" />
-        <div className="w-20 h-4 bg-gray-700 rounded animate-pulse mt-auto" />
+        <div className="w-full h-8 md:h-12 bg-gray-700 rounded animate-pulse mt-2" />
+        <div className="w-16 md:w-20 h-3 md:h-4 bg-gray-700 rounded animate-pulse mt-auto" />
       </div>
     )
   }
@@ -60,16 +52,8 @@ function ServiceCard({
   return (
     <button
       onClick={onToggle}
-      className="agendar-service-card relative rounded-[10px] text-left transition-all duration-300 flex flex-col cursor-pointer group"
+      className="agendar-service-card relative rounded-[10px] text-left transition-all duration-300 flex flex-col cursor-pointer group w-full max-w-[330px] min-h-[180px] md:h-[200px] p-4 md:pt-7 md:pb-7 md:pl-6 md:pr-5 gap-3"
       style={{
-        width: "330px",
-        height: "200px",
-        borderRadius: "10px",
-        paddingTop: "28px",
-        paddingRight: "20px",
-        paddingBottom: "28px",
-        paddingLeft: "26px",
-        gap: "12px",
         border: isSelected ? '2px solid #FDB400' : '1px solid transparent',
         boxShadow: isSelected ? '0 0 15px rgba(253, 180, 0, 0.3)' : 'none',
         background: isSelected
@@ -89,27 +73,24 @@ function ServiceCard({
         {isSelected && <Check className="w-4 h-4 text-[#1A2722]" strokeWidth={3} />}
       </div>
 
-      {/* Row 1: icon + title on left, price badge on right */}
-      <div className="flex items-center justify-between w-full pr-8">
-        <div className="flex items-center gap-[7px]">
+      <div className="flex items-center justify-between w-full md:pr-4">
+        <div className="flex items-center gap-2">
           <div className="relative">
             <Image
               src={getServiceIcon(service.id) || "/placeholder.svg"}
               alt=""
               width={32}
               height={32}
-              className="w-8 h-8 flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
+              className="w-6 h-6 md:w-8 md:h-8 flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
             />
             {isSelected && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#FDB400] rounded-full animate-pulse" />
+              <div className="absolute -top-1 -right-1 w-2 h-2 md:w-3 md:h-3 bg-[#FDB400] rounded-full animate-pulse" />
             )}
           </div>
           <h3
+            className="text-lg md:text-2xl font-semibold leading-tight"
             style={{
               fontFamily: "Inter, sans-serif",
-              fontSize: "24px",
-              lineHeight: "24px",
-              fontWeight: 600,
               color: isSelected ? "#FDB400" : "#FFFFFF",
             }}
           >
@@ -140,12 +121,9 @@ function ServiceCard({
 
       {/* Row 2: Description */}
       <p
-        className="w-full"
+        className="w-full text-sm md:text-base leading-relaxed md:leading-6"
         style={{
           fontFamily: "Inter, sans-serif",
-          fontSize: "16px",
-          fontWeight: 400,
-          lineHeight: "24px",
           color: isSelected ? "#FFFFFF" : "#DFE1D5",
         }}
       >
@@ -255,7 +233,7 @@ export function ServiceSelection({
 
       {/* Package Services - Top Row */}
       {packages.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 mb-6 justify-items-center" style={{ gap: "13rem" }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 justify-items-center">
           {packages.map((service) => (
             <ServiceCard
               key={service.id}
@@ -267,34 +245,18 @@ export function ServiceSelection({
         </div>
       )}
 
-      {/* Individual Services - Middle Row */}
+      {/* Individual Services */}
       {individualServices.length > 0 && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 mb-6 justify-items-center" style={{ gap: "13rem" }}>
-            {individualServices.slice(0, 3).map((service) => (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                isSelected={selectedServices.includes(service.id)}
-                onToggle={() => onServiceToggle(service.id)}
-              />
-            ))}
-          </div>
-
-          {/* Bottom Row - 2 cards */}
-          {individualServices.length > 3 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 max-w-2xl mx-auto mb-12 justify-items-center" style={{ gap: "13rem" }}>
-              {individualServices.slice(3).map((service) => (
-                <ServiceCard
-                  key={service.id}
-                  service={service}
-                  isSelected={selectedServices.includes(service.id)}
-                  onToggle={() => onServiceToggle(service.id)}
-                />
-              ))}
-            </div>
-          )}
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 justify-items-center">
+          {individualServices.map((service) => (
+            <ServiceCard
+              key={service.id}
+              service={service}
+              isSelected={selectedServices.includes(service.id)}
+              onToggle={() => onServiceToggle(service.id)}
+            />
+          ))}
+        </div>
       )}
 
       {/* Selected Count and Continue Button */}

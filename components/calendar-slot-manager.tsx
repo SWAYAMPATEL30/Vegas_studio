@@ -65,7 +65,7 @@ export function CalendarSlotManager({ onSelectDates, loading }: CalendarSlotMana
     onSelectDates(Array.from(selectedDates))
   }
 
-  const days = ['D', 'L', 'M', 'M', 'J', 'V', 'S']
+  const days = ['D', 'L', 'M', 'M2', 'J', 'V', 'S']
   const daysInMonth = getDaysInMonth(currentDate)
   const firstDay = getFirstDayOfMonth(currentDate)
   const monthName = currentDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })

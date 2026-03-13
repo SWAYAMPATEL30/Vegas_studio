@@ -1,0 +1,41 @@
+[debug] [2026-03-12T17:07:46.476Z] ----------------------------------------------------------------------
+[debug] [2026-03-12T17:07:46.479Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\ipate\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js login --no-localhost
+[debug] [2026-03-12T17:07:46.479Z] CLI Version:   15.9.1
+[debug] [2026-03-12T17:07:46.479Z] Platform:      win32
+[debug] [2026-03-12T17:07:46.480Z] Node Version:  v24.11.0
+[debug] [2026-03-12T17:07:46.480Z] Time:          Thu Mar 12 2026 22:37:46 GMT+0530 (India Standard Time)
+[debug] [2026-03-12T17:07:46.480Z] ----------------------------------------------------------------------
+[debug] 
+[info] i  The Firebase CLI’s MCP server feature can optionally make use of Gemini in Firebase. Learn more about Gemini in Firebase and how it uses your data: https://firebase.google.com/docs/gemini-in-firebase#how-gemini-in-firebase-uses-your-data 
+[info] 
+[info] i  Firebase optionally collects CLI and Emulator Suite usage and error reporting information to help improve our products. Data is collected in accordance with Google's privacy policy (https://policies.google.com/privacy) and is not used to identify you. 
+[debug] [2026-03-12T17:08:25.175Z] >>> [apiv2][query] POST https://auth.firebase.tools/attest [none]
+[debug] [2026-03-12T17:08:25.176Z] >>> [apiv2][body] POST https://auth.firebase.tools/attest {"session_id":"63e2c464-c170-44a4-8514-1cf20b9ac89a"}
+[debug] [2026-03-12T17:08:25.717Z] <<< [apiv2][status] POST https://auth.firebase.tools/attest 200
+[debug] [2026-03-12T17:08:25.717Z] <<< [apiv2][body] POST https://auth.firebase.tools/attest {"token":"waXrnJWHZIA06WBhRVt21dsy3aCq6olRiH-ArcZNoiA"}
+[info] 
+[info] To sign in to the Firebase CLI:
+[info] 
+[info] 1. Take note of your session ID:
+[info] 
+[info]    63E2C
+[info] 
+[info] 2. Visit the URL below on any device and follow the instructions to get your code:
+[info] 
+[info]    https://auth.firebase.tools/login?code_challenge=Lfl7VaJZ0xUt_qtND9tAzZ5xlgLtfZTVyJPzc5Ttq5E&session=63e2c464-c170-44a4-8514-1cf20b9ac89a&attest=waXrnJWHZIA06WBhRVt21dsy3aCq6olRiH-ArcZNoiA
+[info] 
+[info] 3. Paste or enter the authorization code below once you have it:
+[info] 
+[debug] [2026-03-12T17:08:43.947Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (C:\Users\ipate\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\@inquirer\core\dist\commonjs\lib\create-prompt.js:101:37)
+    at Interface.emit (node:events:508:28)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1317:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:284:20)
+    at ReadStream.emit (node:events:520:35)
+    at emitKeys (node:internal/readline/utils:371:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+    at ReadStream.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:559:12)
+[error] 
+[error] Error: An unexpected error has occurred.

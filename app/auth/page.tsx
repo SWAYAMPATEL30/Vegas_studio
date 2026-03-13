@@ -4,11 +4,12 @@ import React, { useEffect, useState } from "react"
 import { useAuth } from '@/lib/auth-context'
 import Image from "next/image"
 import { User, Mail, Lock } from "lucide-react"
+import { auth, googleProvider, signInWithPopup } from "@/lib/firebase"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 
 export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState<"login" | "register">("register")
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login")
   const [isClient, setIsClient] = useState(false)
   const [formData, setFormData] = useState({
     nombre: "",
@@ -22,7 +23,7 @@ export default function AuthPage() {
     setIsClient(true)
   }, [])
 
-  const auth = useAuth()
+  const authContext = useAuth()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -30,11 +31,27 @@ export default function AuthPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (activeTab === 'register') {
+      if (!formData.password || !formData.confirmPassword) {
+        alert("Por favor ingresa y confirma tu contraseña")
+        return
+      }
+      if (formData.password !== formData.confirmPassword) {
+        alert("Las contraseñas no coinciden")
+        return
+      }
+      if (!formData.nombre || !formData.correo) {
+        alert("Por favor completa todos los campos obligatorios")
+        return
+      }
+    }
+
     setLoading(true)
     ;(async () => {
       try {
         if (activeTab === 'register') {
-          await auth.register({
+          await authContext.register({
             name: formData.nombre,
             email: formData.correo,
             phone: formData.telefono,
@@ -47,11 +64,11 @@ export default function AuthPage() {
           // allow identifier (email) or phone
           payload.identifier = formData.correo || formData.telefono
           payload.password = formData.password
-          await auth.login(payload)
+          await authContext.login(payload)
         }
       } catch (err: any) {
         console.error(err)
-        alert(err?.message || 'Error during auth')
+        alert(err?.message || 'Error durante la autenticación')
       } finally {
         setLoading(false)
       }
@@ -85,29 +102,36 @@ export default function AuthPage() {
   const handleGoogleLogin = async () => {
     setLoading(true)
     try {
-      console.log("[v0] Google login initiated")
-      // Redirect to Google OAuth endpoint
-      // Users should set up Google OAuth credentials in their Google Cloud Console
-      // Client ID should be added to environment variables: NEXT_PUBLIC_GOOGLE_CLIENT_ID
-      const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""
-      const redirectUri = `${window.location.origin}/auth/google/callback`
+      console.log('[v0] Authenticating with Google (Firebase)')
       
-      if (!googleClientId) {
-        console.warn("[v0] Google Client ID not configured. Please add NEXT_PUBLIC_GOOGLE_CLIENT_ID to environment variables.")
-        alert("Configuración de Google OAuth pendiente. Contacta al administrador.")
-        setLoading(false)
-        return
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      sessionStorage.setItem('isAuthenticated', 'true')
+      sessionStorage.setItem('authProvider', 'google')
+      sessionStorage.setItem('userEmail', user.email || 'usuario@gmail.com')
+      
+      localStorage.setItem('vegas_user', JSON.stringify({ email: user.email, name: user.displayName }));
+      localStorage.setItem('vegas_token', await user.getIdToken());
+      localStorage.setItem('vegas_role', 'client');
+      
+      window.location.href = '/'
+    } catch (error: any) {
+      console.error('[v0] Error with Google auth:', error)
+      
+      let errorMessage = 'Error desconocido al autenticar con Google.';
+      if (error?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'El proceso fue cancelado. Por favor, intenta de nuevo y no cierres la ventana.';
+      } else if (error?.code === 'auth/operation-not-allowed') {
+        errorMessage = 'El inicio de sesión con Google no está habilitado en Firebase. Ve a Firebase Console -> Authentication -> Sign-in method y habilita Google.';
+      } else if (error?.code === 'auth/configuration-not-found') {
+        errorMessage = 'Error de configuración de Firebase (auth/configuration-not-found). Por favor, verifica que las llaves en tu archivo .env sean las correctas y que el proyecto exista en Firebase.';
+      } else if (error?.message) {
+        errorMessage = error.message;
       }
       
-      const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth")
-      authUrl.searchParams.append("client_id", googleClientId)
-      authUrl.searchParams.append("redirect_uri", redirectUri)
-      authUrl.searchParams.append("response_type", "code")
-      authUrl.searchParams.append("scope", "profile email")
-      
-      window.location.href = authUrl.toString()
-    } catch (error) {
-      console.error("[v0] Google login error:", error)
+      alert(errorMessage);
+    } finally {
       setLoading(false)
     }
   }

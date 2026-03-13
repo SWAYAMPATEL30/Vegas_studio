@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useAuth } from "./auth-context"
+import { API_BASE_URL } from "./api"
 
 export interface CartItem {
   id: string
@@ -23,8 +24,6 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
@@ -61,13 +60,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
           },
         })
       } catch (err) {
-        console.error("[cart] network error:", err)
+        // Network error — keep local cart as-is
+        console.warn("[cart] network error, keeping local cart:", err)
         return
       }
 
       if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || "Failed to fetch cart")
+        // 401/403 = invalid token (Google/local login) — keep local cart
+        console.warn("[cart] Backend returned", res.status, "— keeping local cart")
+        return
       }
 
       const data = await res.json()
@@ -85,7 +86,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       setItems([...uniqueMap.values()])
     } catch (err) {
-      console.error("[cart] fetch error:", err)
+      console.warn("[cart] fetch error, keeping local cart:", err)
     } finally {
       setLoading(false)
     }
@@ -114,11 +115,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       })
 
       if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || "Failed to add item")
+        // If backend rejects (401, 500, etc.), fall back to local cart
+        console.warn("[cart] Backend cart failed, using local cart")
+        setItems(prev => [...prev, item])
+        return
       }
 
       await refreshCart()
+    } catch (err) {
+      // Network error — fall back to local cart
+      console.warn("[cart] Network error, using local cart:", err)
+      setItems(prev => [...prev, item])
     } finally {
       setLoading(false)
     }
@@ -144,23 +151,45 @@ export function CartProvider({ children }: { children: ReactNode }) {
       )
 
       if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || "Failed to remove item")
+        // Fallback to local removal
+        console.warn("[cart] Backend remove failed, removing locally")
+        setItems(prev => prev.filter(item => item.id !== serviceId))
+        return
       }
 
       await refreshCart()
     } catch (err) {
-      console.error("[cart] remove error:", err)
+      // Network error — remove locally
+      console.warn("[cart] Network error on remove, removing locally:", err)
+      setItems(prev => prev.filter(item => item.id !== serviceId))
     } finally {
       setLoading(false)
     }
   }
 
   /* --------------------------------------------------
-     CLEAR CART (LOCAL ONLY)
+     CLEAR CART
   -------------------------------------------------- */
-  const clearCart = () => {
+  const clearCart = async () => {
+    // Save current items
+    const currentItems = [...items]
+    
+    // Instantly clear UI
     setItems([])
+    
+    // Clear backend if there are any items
+    if (token && !token.startsWith('local-')) {
+      for (const item of currentItems) {
+        try {
+           await fetch(`${API_BASE_URL}/cart/remove/${item.id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        } catch (e) {
+          console.warn('Failed to clear item from backend cart:', item.id)
+        }
+      }
+    }
   }
 
   const total = items.reduce((sum, item) => sum + item.price, 0)
