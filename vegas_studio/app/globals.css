@@ -1,0 +1,233 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* Vegas Estudio Theme - Exact colors from screenshots */
+    /* Background: #1A2722 */
+    --background: 156 22% 13%;
+    --foreground: 0 0% 98%;
+    /* Card: Same dark green #1A2722 */
+    --card: 156 22% 13%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    /* Primary: Yellow/Gold #FDB400 */
+    --primary: 43 100% 50%;
+    --primary-foreground: 0 0% 10%;
+    /* Secondary: Olive/khaki for borders */
+    --secondary: 72 32% 42%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 156 20% 16%;
+    --muted-foreground: 60 8% 55%;
+    /* Accent: Olive green for card borders */
+    --accent: 72 25% 38%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    /* Border: Olive/khaki color */
+    --border: 72 33% 36%;
+    --input: 156 20% 18%;
+    --ring: 42 76% 55%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .service-card {
+    transition: all 0.3s ease;
+    background: transparent;
+  }
+  
+  .service-card:hover {
+    background: linear-gradient(180deg, #7B9A2D -72.56%, #1A2722 100%);
+    transform: scale(1.02);
+  }
+
+  /* Home page service cards - default: gradient border, transparent bg */
+  .home-service-card {
+    background: transparent;
+    border: none;
+    transition: all 0.3s ease;
+    transform-origin: center center;
+  }
+  /* Gradient border via pseudo-element (border-image doesn't work with border-radius) */
+  .home-service-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    padding: 1px;
+    background: linear-gradient(180deg, #7B9A2D -2.12%, #121F1B 109.02%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  /* On hover: gradient fill + scale popup (not height change) */
+  .home-service-card:hover {
+    background: linear-gradient(180deg, #7B9A2D -72.56%, #1A2722 100%) !important;
+    box-shadow: 2px 4px 10.1px 0px rgba(0, 0, 0, 0.7);
+    transform: scale(1.02);
+    z-index: 10;
+  }
+  .home-service-card:hover::before {
+    opacity: 0;
+  }
+
+  /* Duration badge - default: bordered, hover: filled #1A2722 */
+  .duration-badge-default {
+    width: 130px;
+    height: 24px;
+    border-radius: 6px;
+    gap: 5px;
+    padding: 5px 0;
+    background: transparent;
+    border: 1px solid #9AC138;
+    transition: all 0.3s ease;
+  }
+  .home-service-card:hover .duration-badge-default {
+    background: #1A2722;
+    border: 1px solid transparent;
+  }
+
+  /* Agendar individual service cards - default: border #7B9A2D */
+  .agendar-service-card {
+    border: 1px solid #7B9A2D;
+    background: transparent;
+    transition: all 0.3s ease;
+  }
+  .agendar-service-card:hover {
+    background: linear-gradient(180deg, #7B9A2D -72.56%, #1A2722 100%) !important;
+    box-shadow: 2px 4px 10.1px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Global + button hover: white bg, green icon */
+  .plus-btn {
+    transition: all 0.3s ease;
+  }
+  .plus-btn:hover {
+    background: #FFFFFF !important;
+  }
+  .plus-btn:hover .plus-btn-icon {
+    color: #9AC138 !important;
+  }
+
+  /* Header - Agendar cita button hover: white bg, text #9AC138 */
+  .header-agendar-btn {
+    background-color: #FDB400;
+    color: #1A2722;
+  }
+  .header-agendar-btn:hover {
+    background-color: #FFFFFF !important;
+    color: #9AC138 !important;
+  }
+  .header-agendar-btn:hover svg {
+    color: #9AC138;
+  }
+
+  /* Hero - Agendar cita button hover: white bg, text #9AC138 */
+  .hero-agendar-btn {
+    background-color: #FDB400;
+    color: #1A2722;
+  }
+  .hero-agendar-btn:hover {
+    background-color: #FFFFFF !important;
+    color: #9AC138 !important;
+  }
+  .hero-agendar-btn:hover svg {
+    color: #9AC138;
+  }
+
+  /* Hero - Servicios button hover: gray bg #DFE1D5, text #9AC138 */
+  .hero-servicios-btn {
+    background-color: #FFFFFF;
+    color: #1A2722;
+    border-radius: 10px;
+  }
+  .hero-servicios-btn:hover {
+    background-color: #DFE1D5 !important;
+    color: #9AC138 !important;
+    border-radius: 5px !important;
+  }
+
+  /* Header - Iniciar sesion hover (pasted text 3): green bg, white text */
+  .header-login-btn {
+    color: #FAFAFA;
+  }
+  .header-login-btn:hover {
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), #9AC138 !important;
+    color: #FFFFFF !important;
+  }
+
+  /* Header - Cart: white bucket icon, red badge stays red, hover only changes icon */
+  .header-cart-btn {
+    color: #FAFAFA;
+  }
+  .header-cart-icon {
+    filter: brightness(0) invert(1);
+  }
+  .header-cart-btn:hover .header-cart-icon {
+    filter: brightness(0) saturate(100%) invert(72%) sepia(98%) saturate(400%) hue-rotate(5deg) brightness(105%) contrast(101%);
+  }
+  .header-cart-badge {
+    background-color: #99060D !important;
+    color: #FFFFFF !important;
+    transition: none !important;
+    filter: none !important;
+  }
+  .header-cart-btn:hover .header-cart-badge {
+    background-color: #99060D !important;
+    color: #FFFFFF !important;
+    filter: none !important;
+  }
+
+  /* Header - Calendar icon hover: match button hover */
+  .header-agendar-btn:hover .header-calendar-icon {
+    filter: brightness(0) saturate(100%) invert(55%) sepia(70%) saturate(400%) hue-rotate(50deg) brightness(95%) contrast(90%);
+  }
+
+  /* UBICACION - Agendar cita hover: white bg, green icon, green text border */
+  .ubicacion-agendar-btn:hover {
+    background-color: #FFFFFF !important;
+    color: #9AC138 !important;
+    border: 1px solid #9AC138 !important;
+  }
+  .ubicacion-agendar-btn:hover svg {
+    color: #9AC138;
+  }
+}
