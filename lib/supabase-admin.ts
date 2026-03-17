@@ -184,7 +184,7 @@ export async function removeClosedDate(date: string) {
     const settings = await getAdminSettings()
     if (!settings) return null
 
-    const closedDates = (settings.closed_dates || []).filter((d) => d !== date)
+    const closedDates = (settings.closed_dates || []).filter((d: string) => d !== date)
 
     const { data, error } = await supabase
       .from('admin_settings')
@@ -197,6 +197,54 @@ export async function removeClosedDate(date: string) {
     return data
   } catch (error) {
     console.error('Error removing closed date:', error)
+    return null
+  }
+}
+export async function uploadServiceImage(file: File): Promise<string | null> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('vegas_token') : null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+
+    console.log('[supabase] uploading file via backend bridge:', fileName);
+
+    // Convert file to base64
+    const base64Content = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result.split(',')[1]); // Extract base64 part
+        } else {
+          reject(new Error('Failed to convert file to string'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const res = await fetch(`${apiUrl}/admin/services/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        fileName,
+        fileType: file.type,
+        content: base64Content
+      })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || 'Failed to upload image via backend');
+    }
+
+    const { publicUrl } = await res.json();
+    return publicUrl;
+  } catch (error) {
+    console.error('Error uploading service image:', error)
     return null
   }
 }

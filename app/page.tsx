@@ -17,10 +17,28 @@ import { API_BASE_URL } from "@/lib/api"
 export default function HomePage() {
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [liveServices, setLiveServices] = useState<any[]>([])
   const { addItem } = useCart()
-  
-  // Reverted to keeping these 3 specific service constants all the time based on user request
-  const packages = services.filter((s) => s.type === "package")
+
+  // Fetch services on mount
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          setLiveServices(data)
+        }
+      } catch (err) {
+        console.warn('[v0] Error fetching home services:', err)
+      }
+    }
+    fetchServices()
+  }, [])
+
+  // Use live services if available, fallback to local data
+  const displayServices = liveServices.length > 0 ? liveServices : services
+  const packages = displayServices.filter((s: any) => s.type === "package" || s.type === "combo").slice(0, 3)
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -46,7 +64,7 @@ export default function HomePage() {
           <p className="text-xl text-white mb-8">{"Corte y barba con atenci\u00f3n personalizada."}</p>
           <div className="flex items-center justify-center gap-4">
             <Link href="/agendar" className="hero-agendar-btn flex items-center justify-center gap-[6px] rounded-[10px] transition-all duration-300 font-medium whitespace-nowrap" style={{ minWidth: "132.5px", height: "40px", padding: "10px", fontSize: "14px", lineHeight: "20px", fontFamily: "Inter, sans-serif" }}>
-                  <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="flex-shrink-0" style={{ width: "20px", height: "20px" }} />
+              <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="flex-shrink-0" style={{ width: "20px", height: "20px" }} />
               <span className="whitespace-nowrap">Agendar cita</span>
             </Link>
             <Link href="/servicios" className="hero-servicios-btn flex items-center justify-center transition-all duration-300 font-medium whitespace-nowrap" style={{ width: "82px", height: "40px", padding: "10px", fontSize: "14px", lineHeight: "20px", fontFamily: "Inter, sans-serif" }}>
@@ -64,29 +82,54 @@ export default function HomePage() {
 
           {/* Service Cards - 344x441 with padding 28/26/40/26 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-[19px] mb-8 justify-items-center items-start">
-            {packages.map((service) => (
-              <div key={service.id} className="home-service-card group relative rounded-[10px] cursor-pointer flex flex-col" style={{ width: "344px", height: "441px", paddingTop: "28px", paddingRight: "26px", paddingBottom: "40px", paddingLeft: "26px", borderRadius: "10px" }}>
-                <div style={{ flex: "0 0 60px" }} />
-                <div className="flex items-center gap-[7px] flex-wrap justify-start">
-                  <Image src={getServiceIcon(service.id) || "/placeholder.svg"} alt="" width={32} height={32} className="w-8 h-8 flex-shrink-0" />
+            {packages.map((service: any) => (
+              <div
+                key={service.id}
+                className="home-service-card group relative rounded-[10px] cursor-pointer flex flex-col overflow-hidden"
+                style={{
+                  width: "344px",
+                  height: "441px",
+                  paddingTop: "28px",
+                  paddingRight: "26px",
+                  paddingBottom: "40px",
+                  paddingLeft: "26px",
+                  borderRadius: "10px",
+                  backgroundImage: (service.image || service.image_url) ? `url(${service.image || service.image_url})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              >
+                {/* Overlay for readable text if image exists */}
+                {(service.image || service.image_url) && (
+                  <div className="absolute inset-0 bg-black/60 group-hover:bg-black/50 transition-all duration-300 rounded-[10px]" />
+                )}
+
+                <div className="flex items-center gap-[7px] flex-wrap justify-start z-10">
+                  <Image src={service.image || service.image_url || getServiceIcon(service.id) || "/placeholder.svg"} alt="" width={32} height={32} className="w-8 h-8 flex-shrink-0 object-cover rounded" />
                   <h3 className="font-semibold text-white flex-shrink-0" style={{ fontFamily: "Inter, sans-serif", fontSize: "24px", lineHeight: "32px", fontWeight: 600 }}>{service.name}</h3>
                   <span className="duration-badge-default inline-flex items-center justify-center whitespace-nowrap flex-shrink-0">
                     <Clock className="w-[10px] h-[10px] text-white" />
-                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: "10px", fontWeight: 500, lineHeight: "16px", color: "#FFFFFF" }}>{"Duraci\u00f3n: "}{service.duration}{" min"}</span>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: "10px", fontWeight: 500, lineHeight: "16px", color: "#FFFFFF" }}>{"Duración: "}{service.duration || service.duration_minutes}{" min"}</span>
                   </span>
                 </div>
-                <div className="flex-1 mt-[19px]" style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "20px", color: "#FFFFFF" }}>
+                <div className="flex-1 mt-[19px] z-10" style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: "20px", color: "#FFFFFF" }}>
                   <ul className="space-y-1">
                     {service.features?.map((feature: string, i: number) => (
                       <li key={i} className="flex items-start gap-2">
-                        <span className="flex-shrink-0 mt-0.5">{"\u2022"}</span>
+                        <span className="flex-shrink-0 mt-0.5">{"•"}</span>
                         <span>{feature}</span>
+                      </li>
+                    ))}
+                    {!service.features && service.descriptions?.map((desc: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="flex-shrink-0 mt-0.5">{"•"}</span>
+                        <span>{desc}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-                <div className="flex items-center justify-between mt-4">
-                  <span className="rounded-[6px] flex items-center justify-center" style={{ border: "1px solid #9AC138", padding: "6px 14px" }}>
+                <div className="flex items-center justify-between mt-4 z-10">
+                  <span className="rounded-[6px] flex items-center justify-center" style={{ border: "1px solid #9AC138", padding: "6px 14px", background: 'rgba(0,0,0,0.3)' }}>
                     <span style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", fontWeight: 500, color: "#FFFFFF", whiteSpace: "nowrap" }}>{formatPrice(service.price)}</span>
                   </span>
                   <button
@@ -120,9 +163,16 @@ export default function HomePage() {
               <h2 className="text-3xl font-bold mb-2 text-[#1A2722]">{"Ca\u00e9 al estudio cuando"}<br />lo necesites.</h2>
               <p className="text-orange-500 mb-6">{"\u00a1Aqu\u00ed te esperamos!"}</p>
               <div className="mb-6"><span className="inline-block bg-[#1A2722] text-white px-4 py-2 rounded-md text-sm">Calle 76 #63-58</span></div>
-              <div className="h-48 bg-white rounded-lg mb-6 flex items-center justify-center border border-gray-300"><span className="text-gray-400 text-sm">Map Placeholder</span></div>
+              <div className="h-48 bg-white rounded-lg mb-6 overflow-hidden border border-gray-300 relative shadow-inner">
+                <Image
+                  src="0201d6fc6eebe184aceb1b100451ace0d1bad89e.png"
+                  alt="Ubicación Vegas Estudio en Barranquilla"
+                  fill
+                  className="object-cover transition-transform duration-500 hover:scale-110"
+                />
+              </div>
               <Link href="/agendar" className="ubicacion-agendar-btn inline-flex items-center justify-center gap-[6px] rounded-[10px] transition-all duration-300 font-medium" style={{ width: "132.5px", height: "40px", padding: "10px", backgroundColor: "#FDB400", color: "#1A2722", fontFamily: "Inter, sans-serif", fontSize: "14px", fontWeight: 500, lineHeight: "20px" }}>
-            <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="flex-shrink-0" style={{ width: "20px", height: "20px" }} />
+                <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="flex-shrink-0" style={{ width: "20px", height: "20px" }} />
                 <span className="whitespace-nowrap">Agendar cita</span>
               </Link>
             </div>

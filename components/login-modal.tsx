@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
-import { auth, googleProvider, signInWithPopup } from "@/lib/firebase"
+import { supabase } from "@/lib/supabase-admin"
 
 interface LoginModalProps {
   isOpen: boolean
@@ -14,16 +14,28 @@ interface LoginModalProps {
 export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const [isPhoneAuth, setIsPhoneAuth] = useState(false)
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [countryCode, setCountryCode] = useState('+57')
   const [verificationCode, setVerificationCode] = useState('')
   const [showVerification, setShowVerification] = useState(false)
+
+  const countries = [
+    { code: "+91", name: "IN", flag: "🇮🇳" },
+    { code: "+57", name: "CO", flag: "🇨🇴" },
+    { code: "+1", name: "US", flag: "🇺🇸" },
+    { code: "+52", name: "MX", flag: "🇲🇽" },
+    { code: "+34", name: "ES", flag: "🇪🇸" },
+    { code: "+58", name: "VE", flag: "🇻🇪" },
+    { code: "+593", name: "EC", flag: "🇪🇨" },
+    { code: "+51", name: "PE", flag: "🇵🇪" },
+    { code: "+56", name: "CL", flag: "🇨🇱" },
+    { code: "+54", name: "AR", flag: "🇦🇷" },
+  ]
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [isEmailAuth, setIsEmailAuth] = useState(false)
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '730966642426-ppv2le74kb9074qrajfkr2187paiat9i.apps.googleusercontent.com'
 
   useEffect(() => {
-    // Remove Google SDK loading to avoid configuration errors
-    // Using simplified auth instead
+    // Supabase Auth listener handles success via AuthContext redirect
   }, [isOpen])
 
   const handleSendCode = async () => {
@@ -31,8 +43,9 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
     setLoading(true)
     try {
-      console.log('[v0] Sending verification code to:', phoneNumber)
-      sessionStorage.setItem('pendingPhone', phoneNumber)
+      const fullPhone = `${countryCode}${phoneNumber.replace(/\s+/g, '')}`
+      console.log('[v0] Sending verification code to:', fullPhone)
+      sessionStorage.setItem('pendingPhone', fullPhone)
       setShowVerification(true)
     } catch (error) {
       console.error('[v0] Error sending code:', error)
@@ -62,62 +75,26 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     }
   }
 
-  const handleGoogleSuccess = (response: any) => {
-    try {
-      console.log('[v0] Google authentication successful')
-      sessionStorage.setItem('isAuthenticated', 'true')
-      sessionStorage.setItem('authProvider', 'google')
-      if (response?.credential) {
-        sessionStorage.setItem('googleToken', response.credential)
-      }
-      onSuccess?.()
-    } catch (error) {
-      console.error('[v0] Error handling Google auth:', error)
-      alert('Error al autenticar con Google')
-    }
-  }
-
-  const handleGoogleError = () => {
-    console.error('[v0] Google authentication failed')
-    // Fallback to simple auth instead of showing error
-    handleGoogleAuthClick()
-  }
-
   const handleGoogleAuthClick = async () => {
     setLoading(true)
     try {
-      console.log('[v0] Authenticating with Google (Firebase)')
-      
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      console.log('[v0] Authenticating with Google (Supabase)')
 
-      sessionStorage.setItem('isAuthenticated', 'true')
-      sessionStorage.setItem('authProvider', 'google')
-      sessionStorage.setItem('userEmail', user.email || 'usuario@gmail.com')
-      
-      localStorage.setItem('vegas_user', JSON.stringify({ email: user.email, name: user.displayName }));
-      localStorage.setItem('vegas_token', await user.getIdToken());
-      
-      if (onSuccess) {
-        onSuccess()
-      } else {
-        window.location.reload()
-      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        }
+      })
+
+      if (error) throw error;
+
+      // Redirect happens, no code below runs immediately
     } catch (error: any) {
       console.error('[v0] Error with Google auth:', error)
-      
-      let errorMessage = 'Error desconocido al autenticar con Google.';
-      if (error?.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'El proceso fue cancelado. Por favor, intenta de nuevo y no cierres la ventana.';
-      } else if (error?.code === 'auth/operation-not-allowed') {
-        errorMessage = 'El inicio de sesión con Google no está habilitado en Firebase. Ve a Firebase Console -> Authentication -> Sign-in method y habilita Google.';
-      } else if (error?.code === 'auth/configuration-not-found') {
-        errorMessage = 'Error de configuración de Firebase (auth/configuration-not-found). Por favor, verifica que las llaves en tu archivo .env sean las correctas y que el proyecto exista en Firebase.';
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+      let errorMessage = 'Error al autenticar con Google.'
+      if (error?.message) errorMessage = error.message
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -289,13 +266,26 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-700">Número telefónico</label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+57 300 000 0000"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="w-24 px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 bg-white"
+                >
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="300 000 0000"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
+                />
+              </div>
             </div>
             <button
               onClick={handleSendCode}
@@ -321,3 +311,4 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     </div>
   )
 }
+

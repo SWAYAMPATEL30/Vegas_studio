@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -6,6 +6,8 @@ import { API_BASE_URL } from "@/lib/api"
 
 // Admin login email (and identifier) can be configured via environment variable
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@vegas.com'
+
+import { supabase } from "@/lib/supabase-admin"
 
 type User = {
   id: string
@@ -24,6 +26,7 @@ type AuthContextType = AuthState & {
   register: (payload: any) => Promise<void>
   login: (payload: any) => Promise<void>
   logout: () => void
+  updateUser: (user: User) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -35,7 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter()
 
   useEffect(() => {
-    // load from localStorage
+    // 1. load from localStorage
     try {
       const savedRole = localStorage.getItem('vegas_role')
       const savedToken = localStorage.getItem('vegas_token')
@@ -46,6 +49,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (savedUser) setUser(JSON.parse(savedUser))
     } catch (e) {
       console.warn('[auth] failed to load from localStorage', e)
+    }
+
+    // 2. Listen to Supabase Auth State (for Google login redirects)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[auth] Supabase auth event:', event)
+      if (session) {
+        try {
+          // Sync with backend to get local JWT and create user in DB if missing
+          const res = await fetch(`${API_BASE_URL}/auth/google`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          })
+
+          if (res.ok) {
+            const data = await res.json()
+            persist({
+              role: data.role || 'client',
+              token: data.token, // Use backend token for API authorized calls
+              user: data.user
+            })
+            console.log('[auth] sync with backend successful')
+          } else {
+            console.error('[auth] sync with backend failed')
+          }
+        } catch (err) {
+          console.error('[auth] Error syncing Google user with backend:', err)
+        }
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
     }
   }, [])
 
@@ -212,9 +250,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setRole(null)
     router.push('/')
   }
+  
+  const updateUser = (newUser: User) => {
+    persist({ user: newUser })
+  }
 
   return (
-    <AuthContext.Provider value={{ user, token, role, register, login, logout }}>
+    <AuthContext.Provider value={{ user, token, role, register, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

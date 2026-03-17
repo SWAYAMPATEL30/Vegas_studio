@@ -1,10 +1,9 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from 'next/navigation'
 import { AlertCircle } from "lucide-react"
-import { db } from "@/lib/firebase"
-import { collection, addDoc, getDocs, query, where, Timestamp } from "firebase/firestore"
+import { supabase } from "@/lib/supabase-admin"
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
 import { Header } from "@/components/header"
@@ -15,6 +14,7 @@ import { ConfirmationModal } from "@/components/confirmation-modal"
 import { StepIndicator } from "@/components/step-indicator"
 import { ServiceSelection } from "@/components/service-selection"
 import { DateTimeSelection } from "@/components/date-time-selection"
+import { PhoneRequirementModal } from "@/components/phone-requirement-modal"
 import FullScreenLoader from "@/components/fullscreen-loader"
 
 
@@ -50,6 +50,7 @@ export default function AgendarPage() {
   const [serviceToggleLoading, setServiceToggleLoading] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isLoginOpen, setIsLoginOpen] = useState(false)
+  const [isPhoneRequiredOpen, setIsPhoneRequiredOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [services, setServices] = useState<Service[]>([])
@@ -70,17 +71,27 @@ export default function AgendarPage() {
     if (selectedDate && currentStep === 2) {
       const fetchBookedSlots = async () => {
         try {
+          if (!token) {
+            console.log('[agendar] Deferring fetchBookedSlots: token not ready')
+            return
+          }
+
           const yyyy = selectedDate.getFullYear()
           const mm = String(selectedDate.getMonth() + 1).padStart(2, '0')
           const dd = String(selectedDate.getDate()).padStart(2, '0')
           const appointmentDate = `${yyyy}-${mm}-${dd}`
 
-          const q = query(collection(db, 'appointments'), where('appointment_date', '==', appointmentDate))
-          const snapshot = await getDocs(q)
+          const res = await fetch(`${API_BASE_URL}/appointments/booked?date=${appointmentDate}`, {
+            headers: {
+               'Authorization': `Bearer ${token}`
+            }
+          })
+
+          if (!res.ok) throw new Error('Failed to fetch booked slots');
+          const appointments = await res.json()
           
           const existingIntervals: { start: number, end: number }[] = []
-          snapshot.forEach(doc => {
-            const data = doc.data()
+          appointments?.forEach((data: any) => {
             if (data.status !== 'cancelled' && data.status !== 'rejected') {
               let startMinutes = 0
               let duration = data.total_duration_minutes || 15
@@ -135,13 +146,13 @@ export default function AgendarPage() {
              }
           }
           setBookedSlots(slots)
-        } catch (err) {
-          console.error("Error fetching booked slots from firebase", err)
+        } catch (err: any) {
+          console.error("Error fetching booked slots from Supabase", err.message || err)
         }
       }
       fetchBookedSlots()
     }
-  }, [selectedDate, currentStep, cartItems, services]) // Dependencies to recalculate when cart items duration change
+  }, [selectedDate, currentStep, cartItems, services, token]) // Dependencies to recalculate when cart items duration change
 
   // Fetch services, booking status, and blocked slots on mount
   useEffect(() => {
@@ -200,7 +211,13 @@ export default function AgendarPage() {
 
     if (hasToken && hasUser) {
       setIsLoggedIn(true)
-      setCurrentStep(1)
+      const parsedUser = typeof hasUser === 'string' ? JSON.parse(hasUser) : hasUser
+      if (!parsedUser.phone) {
+        setIsPhoneRequiredOpen(true)
+        setCurrentStep(0)
+      } else {
+        setCurrentStep(1)
+      }
     } else {
       setIsLoggedIn(false)
       setCurrentStep(0)
@@ -270,7 +287,7 @@ export default function AgendarPage() {
   const handleLoginSuccess = () => {
     setIsLoggedIn(true)
     setIsLoginOpen(false)
-    setCurrentStep(1)
+    // The useEffect will handle redirecting to Step 1 or showing PhoneRequirementModal
   }
 
   const handleBack = () => {
@@ -292,11 +309,13 @@ export default function AgendarPage() {
 
       // ========== COLLISION CHECK ==========
       const collisionCheckPromise = (async () => {
-        const q = query(
-          collection(db, 'appointments'),
-          where('appointment_date', '==', appointmentDate)
-        )
-        const snapshot = await getDocs(q)
+        const res = await fetch(`${API_BASE_URL}/appointments/booked?date=${appointmentDate}`, {
+          headers: {
+            'Authorization': `Bearer ${tokenValue}`
+          }
+        });
+        if (!res.ok) throw new Error('Failed to fetch booked slots');
+        const appointments = await res.json();
 
         let testStart = 0
         const currentlySelectedDuration = getTotalDuration() || 15
@@ -312,8 +331,7 @@ export default function AgendarPage() {
         const testEnd = testStart + currentlySelectedDuration
 
         // Client-side overlap filter 
-        const conflict = snapshot.docs.some(doc => {
-          const data = doc.data()
+        const conflict = appointments?.some(data => {
           if (data.status === 'cancelled' || data.status === 'rejected') return false
           
           let startMinutes = 0
@@ -337,7 +355,7 @@ export default function AgendarPage() {
           return false
         })
 
-        if (conflict) return { conflict, snapshot }
+        if (conflict) return { conflict, snapshot: appointments }
 
         // Admin Block Filter Check
         const dateAdminBlocks = adminBlockedSlots.filter(s => s.block_date === appointmentDate || s.slot_date === appointmentDate)
@@ -353,7 +371,7 @@ export default function AgendarPage() {
           return false
         })
 
-        return { conflict: blockConflict, snapshot }
+        return { conflict: blockConflict, snapshot: appointments }
       })()
 
       // Add 5-second timeout to prevent infinite hang
@@ -401,7 +419,26 @@ export default function AgendarPage() {
       const userJSON = localStorage.getItem('vegas_user')
       const userInfo = userJSON ? JSON.parse(userJSON) : {}
 
-      // Write directly to Firebase
+      const res = await fetch(`${API_BASE_URL}/appointments/book`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokenValue}`
+        },
+        body: JSON.stringify({
+          appointment_date: appointmentDate,
+          start_time: startTime,
+          end_time: endTime
+        })
+      })
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || 'Failed to book appointment')
+      }
+
+      await clearCart();
+      
       const appointmentObj = {
         appointment_date: appointmentDate,
         start_time_label: selectedTime,
@@ -413,16 +450,9 @@ export default function AgendarPage() {
         userName: userInfo.name || 'Usuario',
         userPhone: userInfo.phone || userInfo.telefono || '',
         status: 'pending',
-        timestamp: Timestamp.now(),
         total_price: totalPrice
       }
 
-      await addDoc(collection(db, 'appointments'), appointmentObj);
-
-      // Empty the cart after successful booking
-      await clearCart();
-
-      // set appointment details to show in confirmation modal
       setAppointmentDetails(appointmentObj)
       setCurrentStep(3)
       setIsConfirmationOpen(true)
@@ -593,6 +623,19 @@ export default function AgendarPage() {
       {/* Modals */}
       <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={handleLoginSuccess} />
+      <PhoneRequirementModal 
+        isOpen={isPhoneRequiredOpen} 
+        onClose={() => {
+          setIsPhoneRequiredOpen(false)
+          if (!user?.phone) {
+             // If they skip, they stay in Step 0 and can't proceed
+          }
+        }} 
+        onSuccess={() => {
+          setIsPhoneRequiredOpen(false)
+          setCurrentStep(1)
+        }} 
+      />
       <ConfirmationModal
         isOpen={isConfirmationOpen}
         onClose={() => {

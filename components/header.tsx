@@ -34,7 +34,7 @@ export function Header({ onCartClick }: HeaderProps) {
   }, [])
 
   return (
-    <header className="bg-background border-b border-border/30">
+    <header className="border-b border-border/30" style={{ background: 'var(--header-bg, var(--background-custom))' }}>
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">

@@ -2,7 +2,9 @@
 
 import React from "react"
 import { useState } from 'react'
-import { Trash2, Edit2, Plus, Loader2 } from 'lucide-react'
+import { Trash2, Edit2, Plus, Loader2, Upload, ImageIcon } from 'lucide-react'
+import { uploadServiceImage } from '@/lib/supabase-admin'
+import Image from 'next/image'
 
 interface Service {
   id: string
@@ -12,6 +14,8 @@ interface Service {
   duration_minutes: number
   type: 'individual' | 'combo'
   is_active: boolean
+  image_url?: string
+  image?: string | null
   created_at: string
 }
 
@@ -38,7 +42,10 @@ export function ServicesManager({
     descriptions: '',
     duration_minutes: '',
     type: 'individual' as 'individual' | 'combo',
+    image_url: '',
   })
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const resetForm = () => {
     setFormData({
@@ -47,7 +54,9 @@ export function ServicesManager({
       descriptions: '',
       duration_minutes: '',
       type: 'individual',
+      image_url: '',
     })
+    setSelectedFile(null)
     setEditingId(null)
   }
 
@@ -58,6 +67,7 @@ export function ServicesManager({
       descriptions: service.descriptions.join(', '),
       duration_minutes: service.duration_minutes.toString(),
       type: service.type,
+      image_url: service.image_url || '',
     })
     setEditingId(service.id)
     setShowForm(true)
@@ -72,19 +82,30 @@ export function ServicesManager({
     }
 
     try {
+      setUploading(true)
+      let uploadedUrl = formData.image_url
+
+      if (selectedFile) {
+        uploadedUrl = await uploadServiceImage(selectedFile) || ''
+      }
+
       const serviceData = {
         name: formData.name,
         price: Number(formData.price),
         descriptions: formData.descriptions.split(',').map((d) => d.trim()).filter(Boolean),
         duration_minutes: Number(formData.duration_minutes),
         type: formData.type,
+        image_url: uploadedUrl,
       }
 
       if (editingId) {
-        // For updates, only send the fields that can be updated
+        // For updates, send all fields
         await onUpdateService(editingId, {
+          name: serviceData.name,
           price: serviceData.price,
-          duration_minutes: serviceData.duration_minutes
+          descriptions: serviceData.descriptions,
+          duration_minutes: serviceData.duration_minutes,
+          image_url: serviceData.image_url
         })
       } else {
         await onAddService(serviceData)
@@ -95,6 +116,8 @@ export function ServicesManager({
     } catch (error) {
       console.error('[v0] Error saving service:', error)
       alert('Error al guardar servicio')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -141,9 +164,9 @@ export function ServicesManager({
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="ej: Corte de cabello"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  disabled={!!editingId} // Name cannot be updated
+                  disabled={false}
                 />
-                {editingId && (
+                {false && (
                   <p className="text-xs text-muted-foreground mt-1">El nombre no se puede modificar</p>
                 )}
               </div>
@@ -207,17 +230,48 @@ export function ServicesManager({
                 placeholder="ej: Corte profesional, Lavado incluido, Cera caliente"
                 rows={3}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                disabled={!!editingId} // Descriptions cannot be updated
+                disabled={false}
               />
-              {editingId && (
+              {false && (
                 <p className="text-xs text-muted-foreground mt-1">Las descripciones no se pueden modificar</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-700">
+                Imagen del servicio (Opcional)
+              </label>
+              <div className="flex items-center gap-4">
+                {(selectedFile || formData.image_url) && (
+                  <div className="relative w-16 h-16 rounded overflow-hidden border">
+                    <Image 
+                      src={selectedFile ? URL.createObjectURL(selectedFile) : formData.image_url} 
+                      alt="Preview" 
+                      fill 
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm hover:bg-gray-100 text-gray-800 font-medium">
+                  <Upload className="w-4 h-4" />
+                  <span>{editingId ? 'Cambiar imagen' : 'Subir imagen'}</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+                {selectedFile && (
+                  <span className="text-xs text-gray-500 truncate max-w-xs">{selectedFile.name}</span>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || uploading}
                 className="flex-1 px-4 py-2 rounded-lg text-white font-medium transition-all flex items-center justify-center gap-2"
                 style={{ background: '#9AC138' }}
                 onMouseEnter={(e) => {
@@ -227,7 +281,7 @@ export function ServicesManager({
                   e.currentTarget.style.opacity = '1'
                 }}
               >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {(loading || uploading) && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editingId ? 'Actualizar' : 'Crear'} servicio
               </button>
               <button
@@ -258,9 +312,20 @@ export function ServicesManager({
               className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-2">
-                <h4 className="font-semibold text-sm" style={{ color: '#1A2722' }}>
-                  {service.name}
-                </h4>
+                <div className="flex items-center gap-2">
+                  {service.image || service.image_url ? (
+                    <div className="relative w-8 h-8 rounded overflow-hidden">
+                      <Image src={service.image || service.image_url || ''} alt="" fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
+                      <ImageIcon className="w-4 h-4 text-gray-400" />
+                    </div>
+                  )}
+                  <h4 className="font-semibold text-sm" style={{ color: '#1A2722' }}>
+                    {service.name}
+                  </h4>
+                </div>
                 <span
                   className="text-xs px-2 py-1 rounded font-medium"
                   style={{

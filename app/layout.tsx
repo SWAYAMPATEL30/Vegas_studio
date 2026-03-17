@@ -5,6 +5,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { CartProvider } from "@/lib/cart-context"
 import { AuthProvider } from "@/lib/auth-context"
+import { ThemeProvider } from "@/lib/theme-context"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -22,7 +23,9 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning translate="no">
         <AuthProvider>
-          <CartProvider>{children}</CartProvider>
+          <ThemeProvider>
+            <CartProvider>{children}</CartProvider>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

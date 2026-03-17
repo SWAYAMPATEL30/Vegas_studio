@@ -14,7 +14,7 @@ export function Footer() {
         />
       </div>
       {/* Dark overlay matching design spec: rgba(26, 39, 34, 0.95) */}
-      <div className="absolute inset-0 z-[1]" style={{ background: 'rgba(26, 39, 34, 0.95)' }} />
+      <div className="absolute inset-0 z-[1]" style={{ background: 'var(--footer-bg, rgba(26, 39, 34, 0.95))', opacity: 0.95 }} />
       <div className="container mx-auto relative z-10" style={{ padding: '34px 87px' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Logo */}
@@ -56,7 +56,7 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-sm">Contáctanos:</span>
-              <a href="tel:+573147801264" className="text-sm font-medium hover:text-primary transition-colors">314 780 1264</a>
+              <a href="tel:3147801264" className="text-sm font-medium hover:text-primary transition-colors">314 780 1264</a>
             </div>
           </div>
         </div>

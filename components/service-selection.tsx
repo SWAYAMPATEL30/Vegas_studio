@@ -7,7 +7,16 @@ import { getServiceIcon } from "@/lib/service-icons"
 import { useState, useEffect } from "react"
 
 interface ServiceSelectionProps {
-  services: Array<{ id: string; name: string; price: number; duration_minutes: number; descriptions?: string[]; type: string }>
+  services: Array<{ 
+    id: string; 
+    name: string; 
+    price: number; 
+    duration_minutes: number; 
+    descriptions?: string[]; 
+    type: string;
+    image_url?: string;
+    image?: string | null;
+  }>
   selectedServices: string[]
   onServiceToggle: (serviceId: string) => void
   onContinue: () => void
@@ -18,7 +27,16 @@ function ServiceCard({
   isSelected,
   onToggle,
 }: {
-  service: { id: string; name: string; price: number; duration_minutes: number; descriptions?: string[]; type: string }
+  service: { 
+    id: string; 
+    name: string; 
+    price: number; 
+    duration_minutes: number; 
+    descriptions?: string[]; 
+    type: string;
+    image_url?: string;
+    image?: string | null;
+  }
   isSelected: boolean
   onToggle: () => void
 }) {
@@ -77,11 +95,11 @@ function ServiceCard({
         <div className="flex items-center gap-2">
           <div className="relative">
             <Image
-              src={getServiceIcon(service.id) || "/placeholder.svg"}
+              src={service.image || service.image_url || getServiceIcon(service.id) || "/placeholder.svg"}
               alt=""
               width={32}
               height={32}
-              className="w-6 h-6 md:w-8 md:h-8 flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
+              className="w-6 h-6 md:w-8 md:h-8 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 object-cover rounded"
             />
             {isSelected && (
               <div className="absolute -top-1 -right-1 w-2 h-2 md:w-3 md:h-3 bg-[#FDB400] rounded-full animate-pulse" />

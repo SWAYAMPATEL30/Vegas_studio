@@ -3,15 +3,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { Calendar, Clock, Users, ToggleLeft, ToggleRight, Filter, Download, Plus, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { Clock, Users, ToggleLeft, ToggleRight, Filter, Download, Plus, AlertCircle, CheckCircle, Loader2, Palette } from 'lucide-react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { BlockedSlotsManager } from '@/components/blocked-slots-manager'
 import { ServicesManager } from '@/components/services-manager'
-import { CalendarSlotManager } from '@/components/calendar-slot-manager'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { ThemeManager } from '@/components/theme-manager'
 import { services as localServicesData } from '@/lib/services-data'
+import { supabase } from '@/lib/supabase-admin'
 
 interface AdminSettings {
   id: number
@@ -59,6 +58,8 @@ interface Service {
   duration_minutes: number
   type: 'individual' | 'combo'
   is_active: boolean
+  image?: string | null
+  image_url?: string
   created_at: string
 }
 
@@ -91,7 +92,7 @@ export default function AdminPage() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null)
   const [confirmMessage, setConfirmMessage] = useState('')
-  const [activeTab, setActiveTab] = useState<'appointments' | 'slots' | 'services' | 'calendar'>('appointments')
+  const [activeTab, setActiveTab] = useState<'appointments' | 'slots' | 'services' | 'theme'>('appointments')
 
   // Get auth token for API calls
   const getAuthToken = () => {
@@ -100,7 +101,7 @@ export default function AdminPage() {
 
   // Fetch all data on mount and interval
   useEffect(() => {
-    let intervalId: NodeJS.Timeout
+    let channel: any
 
     const fetchData = async (isInitial = true) => {
       try {
@@ -128,99 +129,57 @@ export default function AdminPage() {
     if (role === 'admin') {
       fetchData(true)
       
-      // Auto-refresh every 15 seconds in background
-      intervalId = setInterval(() => {
-        fetchData(false)
-      }, 15000)
+      channel = supabase
+        .channel('admin_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+          fetchData(false)
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_slots' }, () => {
+          fetchData(false)
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
+          fetchData(false)
+        })
+        .subscribe()
     }
 
     return () => {
-      if (intervalId) clearInterval(intervalId)
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
     }
   }, [role])
 
-  // Fetch appointments — fetch from both backend and Firebase and merge
+  // Fetch appointments from Backend
   const fetchAppointments = async () => {
     try {
       let backendAppointments: Appointment[] = []
-      let firebaseAppointments: Appointment[] = []
 
-      // 1. Try fetching from Backend (PostgreSQL)
-      try {
-        const token = getAuthToken()
-        const response = await fetch(`${API_BASE_URL}/admin/appointments`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          cache: 'no-store'
-        })
+      const token = getAuthToken()
+      const response = await fetch(`${API_BASE_URL}/admin/appointments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        cache: 'no-store'
+      })
 
-        if (response.ok) {
-          backendAppointments = await response.json()
-        }
-      } catch (backendErr) {
-        console.warn('[admin] Backend appointments failed:', backendErr)
+      if (response.ok) {
+        backendAppointments = await response.json()
+      } else {
+        throw new Error('Failed to fetch from backend')
       }
 
-      // 2. ALWAYS fetch from Firebase (new bookings go here)
-      try {
-        let liveServices: any[] = localServicesData
-        try {
-           const svRes = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
-           if (svRes.ok) liveServices = await svRes.json()
-        } catch (e) { }
-
-        const snapshot = await getDocs(collection(db, 'appointments'))
-        firebaseAppointments = snapshot.docs.map(doc => {
-          const d = doc.data()
-          return {
-            id: doc.id,
-            customer_name: d.userName || 'N/A',
-            customer_email: d.userEmail || '',
-            customer_phone: d.userPhone || '',
-            appointment_date: d.appointment_date || '',
-            start_time: d.start_time || '',
-            end_time: d.end_time || '',
-            total_duration_minutes: d.total_duration_minutes || 0,
-            status: d.status || 'pending',
-            rejection_reason: d.rejection_reason || null,
-            created_at: d.timestamp?.toDate?.()?.toISOString?.() || '',
-            appointment_services: (d.services || []).map((name: string) => {
-              const sData = liveServices.find(s => s.name === name)
-              return {
-                services: { 
-                  id: name, 
-                  name, 
-                  type: sData?.type === 'package' ? 'combo' : 'individual', 
-                  price: sData?.price || 0, 
-                  duration_minutes: sData?.duration_minutes || sData?.duration || 0 
-                }
-              }
-            })
-          }
-        })
-      } catch (fbErr) {
-        console.error('[admin] Firebase appointments failed:', fbErr)
-      }
-
-      // 3. Merge and Sort
-      const merged = [...backendAppointments, ...firebaseAppointments]
-      
       // Sort newest to oldest as default view or by appointment_date
-      merged.sort((a, b) => {
+      backendAppointments.sort((a, b) => {
          const dateA = new Date(`${a.appointment_date}T${a.start_time || '00:00:00'}`).getTime()
          const dateB = new Date(`${b.appointment_date}T${b.start_time || '00:00:00'}`).getTime()
-         // If dates are invalid, fall back to created_at
          if (isNaN(dateA) || isNaN(dateB)) {
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
          }
          return dateB - dateA
       })
 
-      setAppointments(merged)
-      if (merged.length === 0) {
-         // Optionally you could set an error if BOTH failed, but usually empty implies no bookings.
-      }
+      setAppointments(backendAppointments)
     } catch (error) {
       console.error('[v0] Fatal error fetching appointments:', error)
       setError('Error al cargar las citas')
@@ -301,7 +260,8 @@ export default function AdminPage() {
           duration_minutes: serviceData.duration_minutes,
           price: serviceData.price,
           descriptions: serviceData.descriptions,
-          type: serviceData.type
+          type: serviceData.type,
+          image_url: (serviceData as any).image_url || (serviceData as any).image
         }),
       })
 
@@ -325,8 +285,11 @@ export default function AdminPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          name: updates.name,
           price: updates.price,
-          duration_minutes: updates.duration_minutes
+          descriptions: updates.descriptions,
+          duration_minutes: updates.duration_minutes,
+          image_url: (updates as any).image_url || (updates as any).image
         }),
       })
 
@@ -454,36 +417,22 @@ export default function AdminPage() {
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
     try {
       const token = getAuthToken()
-      
-      let isBackendSuccess = false;
       let updatedStatus = newStatus;
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/admin/appointments/${appointmentId}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            status: newStatus
-          })
+      const response = await fetch(`${API_BASE_URL}/admin/appointments/${appointmentId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: newStatus
         })
+      })
 
-        if (response.ok) {
-           isBackendSuccess = true;
-           const result = await response.json()
-           updatedStatus = result.appointment.status;
-        }
-      } catch (e) {
-         console.warn('[admin] Backend status update failed or unavailable, relying on Firebase');
-      }
-
-      // If backend failed (or it was a Firebase document ID which Postgres doesn't recognize), update Firebase
-      if (!isBackendSuccess) {
-         const appointmentRef = doc(db, 'appointments', appointmentId);
-         await updateDoc(appointmentRef, { status: newStatus });
-      }
+      if (!response.ok) throw new Error('Failed to update status on backend')
+      const result = await response.json()
+      updatedStatus = result.appointment.status;
 
       // Update local state with the updated appointment
       setAppointments(
@@ -546,7 +495,7 @@ export default function AdminPage() {
     <div className="min-h-screen flex flex-col" style={{ background: '#f5f5f5' }}>
       <Header />
 
-      <main className="flex-1 py-8 px-4">
+      <main className="flex-1 py-8 px-4 admin-area">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -573,7 +522,7 @@ export default function AdminPage() {
               style={{ color: activeTab === 'appointments' ? '#FDB400' : undefined }}
             >
               <span className="inline-flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
+                <Users className="w-4 h-4" />
                 Citas programadas
               </span>
             </button>
@@ -604,16 +553,16 @@ export default function AdminPage() {
               </span>
             </button>
             <button
-              onClick={() => setActiveTab('calendar')}
-              className={`px-4 py-3 font-medium text-sm border-b-2 transition-all whitespace-nowrap ${activeTab === 'calendar'
+              onClick={() => setActiveTab('theme')}
+              className={`px-4 py-3 font-medium text-sm border-b-2 transition-all whitespace-nowrap ${activeTab === 'theme'
                   ? 'border-yellow-500'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
                 }`}
-              style={{ color: activeTab === 'calendar' ? '#FDB400' : undefined }}
+              style={{ color: activeTab === 'theme' ? '#FDB400' : undefined }}
             >
               <span className="inline-flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Calendario
+                <Palette className="w-4 h-4" />
+                Personalización
               </span>
             </button>
           </div>
@@ -633,20 +582,11 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Calendar Tab */}
-          {activeTab === 'calendar' && (
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6">
-                <CalendarSlotManager
-                  onSelectDates={(dates) => {
-                    console.log('[v0] Selected dates for blocking:', dates)
-                    setSlotsLoading(false)
-                  }}
-                  loading={slotsLoading}
-                />
-              </div>
-            </div>
+          {/* Theme Tab */}
+          {activeTab === 'theme' && (
+            <ThemeManager />
           )}
+
 
           {/* Appointments Tab */}
           {activeTab === 'appointments' && (
@@ -700,7 +640,7 @@ export default function AdminPage() {
                         {appointments.length}
                       </p>
                     </div>
-                    <Calendar className="w-6 h-6 text-muted-foreground" />
+                    <Users className="w-6 h-6 text-muted-foreground" />
                   </div>
                 </div>
 

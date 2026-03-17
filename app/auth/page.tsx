@@ -1,14 +1,16 @@
-"use client"
+﻿"use client"
 
 import React, { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from '@/lib/auth-context'
 import Image from "next/image"
-import { User, Mail, Lock } from "lucide-react"
-import { auth, googleProvider, signInWithPopup } from "@/lib/firebase"
+import { User, Mail, Lock, AlertCircle } from "lucide-react"
+import { supabase } from "@/lib/supabase-admin"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 
 export default function AuthPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<"login" | "register">("login")
   const [isClient, setIsClient] = useState(false)
   const [formData, setFormData] = useState({
@@ -17,15 +19,40 @@ export default function AuthPage() {
     password: "",
     confirmPassword: "",
     telefono: "",
+    countryCode: "+57",
   })
+  
+  const countries = [
+    { code: "+91", name: "IN", flag: "🇮🇳" },
+    { code: "+57", name: "CO", flag: "🇨🇴" },
+    { code: "+1", name: "US", flag: "🇺🇸" },
+    { code: "+52", name: "MX", flag: "🇲🇽" },
+    { code: "+34", name: "ES", flag: "🇪🇸" },
+    { code: "+58", name: "VE", flag: "🇻🇪" },
+    { code: "+593", name: "EC", flag: "🇪🇨" },
+    { code: "+51", name: "PE", flag: "🇵🇪" },
+    { code: "+56", name: "CL", flag: "🇨🇱" },
+    { code: "+54", name: "AR", flag: "🇦🇷" },
+  ]
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     setIsClient(true)
   }, [])
 
+  useEffect(() => {
+    setError(null)
+  }, [activeTab])
+
   const authContext = useAuth()
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    if (authContext.user) {
+      router.push('/')
+    }
+  }, [authContext.user, router])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
@@ -51,24 +78,26 @@ export default function AuthPage() {
     ;(async () => {
       try {
         if (activeTab === 'register') {
+          const fullPhone = formData.telefono ? `${formData.countryCode}${formData.telefono.replace(/\s+/g, '')}` : ""
           await authContext.register({
             name: formData.nombre,
             email: formData.correo,
-            phone: formData.telefono,
+            phone: fullPhone,
             password: formData.password,
             confirmPassword: formData.confirmPassword,
           })
         } else {
           // login
           const payload: any = {}
+          const fullPhone = formData.telefono ? `${formData.countryCode}${formData.telefono.replace(/\s+/g, '')}` : ""
           // allow identifier (email) or phone
-          payload.identifier = formData.correo || formData.telefono
+          payload.identifier = formData.correo || fullPhone
           payload.password = formData.password
           await authContext.login(payload)
         }
       } catch (err: any) {
         console.error(err)
-        alert(err?.message || 'Error durante la autenticación')
+        setError(err?.message || 'Error durante la autenticación')
       } finally {
         setLoading(false)
       }
@@ -81,7 +110,8 @@ export default function AuthPage() {
       console.log("[v0] Phone login initiated")
       // Phone authentication can be implemented with Firebase, Twilio, or similar services
       // For now, this redirects to a phone verification page
-      const phoneNumber = formData.telefono || ""
+      const fullPhone = formData.telefono ? `${formData.countryCode}${formData.telefono.replace(/\s+/g, '')}` : ""
+      const phoneNumber = fullPhone
       
       if (!phoneNumber && activeTab === "login") {
         alert("Por favor ingresa un número telefónico válido")
@@ -102,37 +132,24 @@ export default function AuthPage() {
   const handleGoogleLogin = async () => {
     setLoading(true)
     try {
-      console.log('[v0] Authenticating with Google (Firebase)')
+      console.log('[v0] Authenticating with Google (Supabase)')
       
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth` : undefined,
+        }
+      })
 
-      sessionStorage.setItem('isAuthenticated', 'true')
-      sessionStorage.setItem('authProvider', 'google')
-      sessionStorage.setItem('userEmail', user.email || 'usuario@gmail.com')
+      if (error) throw error;
       
-      localStorage.setItem('vegas_user', JSON.stringify({ email: user.email, name: user.displayName }));
-      localStorage.setItem('vegas_token', await user.getIdToken());
-      localStorage.setItem('vegas_role', 'client');
-      
-      window.location.href = '/'
     } catch (error: any) {
       console.error('[v0] Error with Google auth:', error)
-      
-      let errorMessage = 'Error desconocido al autenticar con Google.';
-      if (error?.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'El proceso fue cancelado. Por favor, intenta de nuevo y no cierres la ventana.';
-      } else if (error?.code === 'auth/operation-not-allowed') {
-        errorMessage = 'El inicio de sesión con Google no está habilitado en Firebase. Ve a Firebase Console -> Authentication -> Sign-in method y habilita Google.';
-      } else if (error?.code === 'auth/configuration-not-found') {
-        errorMessage = 'Error de configuración de Firebase (auth/configuration-not-found). Por favor, verifica que las llaves en tu archivo .env sean las correctas y que el proyecto exista en Firebase.';
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
+      let errorMessage = 'Error al autenticar con Google.'
+      if (error?.message) errorMessage = error.message
+      alert(errorMessage)
     } finally {
-      setLoading(false)
+      // Loading remains true usually until redirect
     }
   }
 
@@ -187,6 +204,13 @@ export default function AuthPage() {
               Regístrate
             </button>
           </div>
+
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-1">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -273,14 +297,28 @@ export default function AuthPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Teléfono
                   </label>
-                  <input
-                    type="tel"
-                    name="telefono"
-                    placeholder="+57 314 780 1264"
-                    value={formData.telefono}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 placeholder-gray-500"
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      name="countryCode"
+                      value={formData.countryCode}
+                      onChange={handleInputChange}
+                      className="w-24 px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 bg-white"
+                    >
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      name="telefono"
+                      placeholder="314 780 1264"
+                      value={formData.telefono}
+                      onChange={handleInputChange}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 placeholder-gray-500"
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -290,14 +328,28 @@ export default function AuthPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Teléfono (opcional para OTP)
                 </label>
-                <input
-                  type="tel"
-                  name="telefono"
-                  placeholder="+57 314 780 1264"
-                  value={formData.telefono}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 placeholder-gray-500"
-                />
+                <div className="flex gap-2">
+                  <select
+                    name="countryCode"
+                    value={formData.countryCode}
+                    onChange={handleInputChange}
+                    className="w-24 px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 bg-white"
+                  >
+                    {countries.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    name="telefono"
+                    placeholder="314 780 1264"
+                    value={formData.telefono}
+                    onChange={handleInputChange}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900 placeholder-gray-500"
+                  />
+                </div>
               </div>
             )}
 

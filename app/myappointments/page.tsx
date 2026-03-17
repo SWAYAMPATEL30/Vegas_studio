@@ -88,66 +88,10 @@ export default function MyAppointmentsPage() {
         }
 
         const data = await res.json()
-        setAppointments(data)
+        setAppointments(data || [])
       } catch (err) {
-        console.warn("[appointments] backend fetch failed, using firebase fallback:", err)
-        // Fallback to Firebase using the user's email
-        try {
-          const userJSON = localStorage.getItem('vegas_user')
-          const userInfo = userJSON ? JSON.parse(userJSON) : {}
-          const userEmail = userInfo.email || user?.email
-
-          if (!userEmail) {
-             setAppointments([])
-             return
-          }
-
-          const q = query(
-            collection(db, 'appointments'),
-            where('userEmail', '==', userEmail)
-          )
-          const snapshot = await getDocs(q)
-          
-          let liveServices: any[] = localServicesData
-          try {
-             const svRes = await fetch(`${API_BASE_URL}/services`)
-             if (svRes.ok) liveServices = await svRes.json()
-          } catch (e) { console.warn('Failed to fetch live services, using static backup') }
-
-          const firebaseAppointments: Appointment[] = snapshot.docs.map(doc => {
-            const d = doc.data()
-            return {
-              id: doc.id,
-              appointment_date: d.appointment_date || '',
-              start_time: d.start_time || '',
-              end_time: d.end_time || '',
-              total_duration_minutes: d.total_duration_minutes || 0,
-              status: d.status || 'pending',
-              rejection_reason: null,
-              created_at: d.timestamp?.toDate?.()?.toISOString?.() || '',
-              appointment_services: (d.services || []).map((name: string) => {
-                const sData = liveServices.find(s => s.name === name)
-                return {
-                  services: { 
-                    id: name, 
-                    name, 
-                    type: sData?.type === 'package' ? 'combo' : 'individual', 
-                    price: sData?.price || 0, 
-                    duration_minutes: sData?.duration_minutes || sData?.duration || 0 
-                  }
-                }
-              })
-            }
-          })
-          
-          // Sort by newest first
-          firebaseAppointments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          
-          setAppointments(firebaseAppointments)
-        } catch (fbErr) {
-          console.error("[appointments] firebase fetch error:", fbErr)
-          setError("No se pudieron cargar tus citas")
-        }
+        console.error("[appointments] fetch error:", err)
+        setError("No se pudieron cargar tus citas")
       } finally {
         setLoading(false)
       }
@@ -155,6 +99,30 @@ export default function MyAppointmentsPage() {
 
     fetchAppointments()
   }, [mounted, token])
+
+  const handleCancel = async (appointmentId: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas cancelar esta cita?')) return
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/appointments/cancel/${appointmentId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!res.ok) throw new Error('Error al cancelar')
+
+      // Update local state
+      setAppointments((prev) =>
+        prev.map((appt) =>
+          appt.id === appointmentId ? { ...appt, status: 'cancelled' as const } : appt
+        )
+      )
+    } catch (err) {
+      alert('No se pudo cancelar la cita. Por favor intenta de nuevo.')
+    }
+  }
 
   /* ---------------- HELPERS ---------------- */
 
@@ -279,6 +247,15 @@ export default function MyAppointmentsPage() {
                       <span className="text-red-600">
                         Motivo: {appt.rejection_reason}
                       </span>
+                    )}
+
+                    {(appt.status === 'pending' || appt.status === 'confirmed') && (
+                      <button
+                        onClick={() => handleCancel(appt.id)}
+                        className="text-red-600 hover:text-red-800 font-medium py-1 px-3 border border-red-600 rounded-md transition-colors"
+                      >
+                        Cancelar Cita
+                      </button>
                     )}
                   </div>
                 </div>

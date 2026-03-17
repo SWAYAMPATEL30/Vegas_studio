@@ -111,9 +111,11 @@ export default function ServiciosPage() {
     }).format(price)
   }
 
-  // Filter services by type
-  const comboPackages = services.filter(s => s.type === 'combo' && s.is_active)
-  const individualServices = services.filter(s => s.type === 'individual' && s.is_active)
+  // Filter services by type and priority
+  const priorityNames = ["Clásico", "Vegas Pro", "Premium"]
+  const priorityCombos = services.filter(s => s.type === 'combo' && s.is_active && priorityNames.includes(s.name))
+  // All other active services (including non-priority combos)
+  const gridServices = services.filter(s => s.is_active && !priorityCombos.some(pc => pc.id === s.id))
 
   if (loading) {
     return (
@@ -193,7 +195,7 @@ export default function ServiciosPage() {
       {/* Package Services */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-5xl">
-          {comboPackages.map((combo, index) => (
+          {priorityCombos.map((combo, index) => (
             <div 
               key={combo.id}
               className="grid grid-cols-1 md:grid-cols-2 mb-16 items-center" 
@@ -202,7 +204,7 @@ export default function ServiciosPage() {
               {/* Image - alternates left/right based on index */}
               <div className={`${index % 2 === 1 ? 'md:order-2' : ''} aspect-square rounded-2xl overflow-hidden relative w-full max-w-[400px] ${index % 2 === 1 ? 'md:ml-auto' : ''}`}>
                 <Image
-                  src={comboImages[index % comboImages.length]}
+                  src={combo.image || comboImages[index % comboImages.length]}
                   alt={combo.name}
                   fill
                   className="object-cover"
@@ -259,7 +261,7 @@ export default function ServiciosPage() {
             </div>
           ))}
 
-          {comboPackages.length === 0 && (
+          {priorityCombos.length === 0 && (
             <p className="text-center text-muted-foreground">No hay paquetes disponibles</p>
           )}
         </div>
@@ -267,31 +269,38 @@ export default function ServiciosPage() {
 
       {/* Individual Services */}
       <section className="py-16" style={{ width: '100%', maxWidth: '1440px', margin: '0 auto', paddingRight: '50px', paddingLeft: '50px' }}>
-        <h2 className="text-3xl font-bold text-center mb-12">Servicios individuales</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">Otros servicios</h2>
 
         {/* All cards in a single grid: 3 columns, gap 55px */}
         <div className="grid grid-cols-1 md:grid-cols-3 mb-10 justify-items-center" style={{ gap: "55px", alignContent: "flex-start", alignItems: "start" }}>
-          {individualServices.map((service) => (
+          {gridServices.map((service) => (
             <div
               key={service.id}
               className="service-card cursor-pointer flex flex-col bg-card overflow-hidden"
               style={{
                 width: '344px',
-                height: '260px',
+                minHeight: '260px',
                 borderRadius: '10px',
                 border: '1px solid #7B9A2D',
-                padding: '39px',
               }}
             >
+              {/* Image Header if exists */}
+              {(service.image) && (
+                <div className="relative w-full h-32 overflow-hidden border-b border-[#7B9A2D]">
+                  <Image src={service.image} alt={service.name} fill className="object-cover" />
+                </div>
+              )}
+
+              <div className="flex flex-col flex-1 p-[30px]">
               {/* Top row: icon + name + price badge */}
               <div className="flex items-start justify-between gap-3 w-full">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <Image
-                    src={getServiceIcon(service.id) || "/placeholder.svg"}
+                    src={service.image || getServiceIcon(service.id) || "/placeholder.svg"}
                     alt=""
                     width={32}
                     height={32}
-                    className="w-8 h-8 flex-shrink-0 mt-0.5"
+                    className="w-8 h-8 flex-shrink-0 mt-0.5 object-cover rounded"
                   />
                   <span className="font-bold text-white break-words line-clamp-2 capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '20px', lineHeight: '30px' }}>{service.name}</span>
                 </div>
@@ -332,11 +341,12 @@ export default function ServiciosPage() {
                 </button>
               </div>
             </div>
+          </div>
           ))}
 
-          {individualServices.length === 0 && (
+          {gridServices.length === 0 && (
             <p className="text-center text-muted-foreground col-span-full">
-              No hay servicios individuales disponibles
+              No hay servicios disponibles
             </p>
           )}
         </div>
