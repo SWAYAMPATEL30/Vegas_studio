@@ -111,7 +111,7 @@ export function Header({ onCartClick }: HeaderProps) {
               style={{ padding: '8px' }}
             >
               <span className="hidden md:inline font-medium text-sm">Iniciar sesión</span>
-              <User className="w-5 h-5 text-gray-800 md:hidden" />
+              <User className="w-5 h-5 md:hidden" style={{ color: '#FDB400' }} />
             </Link>
           ) : (
             // PROFILE DROPDOWN
@@ -120,7 +120,7 @@ export function Header({ onCartClick }: HeaderProps) {
                 onClick={() => setOpen(!open)}
                 className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-black/5 transition"
               >
-                <User className="w-5 h-5 text-gray-800" />
+                <User className="w-5 h-5" style={{ color: '#FDB400' }} />
               </button>
 
               {open && (
