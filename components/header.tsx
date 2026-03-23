@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
-import { User, Menu, X } from "lucide-react"
+import { User, Menu, X, ShoppingCart } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/lib/auth-context"
 
@@ -76,25 +76,18 @@ export function Header({ onCartClick }: HeaderProps) {
           {/* Cart */}
           <button
             onClick={onCartClick}
-            className="relative flex items-center justify-center transition-all duration-300 mr-2 md:mr-0"
-            style={{ width: '45px', height: '22px', padding: '2px' }}
+            className="relative flex items-center justify-center transition-all duration-300 mr-3 md:mr-2"
           >
-            <Image
-              src="/icons/Shopping.svg"
-              alt="Carrito"
-              width={55}
-              height={70}
-              className="w-[45px] md:w-[55px] h-auto"
-            />
+            <ShoppingCart className="w-6 h-6" style={{ color: '#FDB400' }} />
             <span
-              className="absolute flex items-center justify-center text-white font-medium"
+              className="absolute flex items-center justify-center text-white font-medium shadow-sm"
               style={{
                 width: '18px',
-                height: '19px',
-                right: '0px',
-                top: '-5px',
+                height: '18px',
+                right: '-8px',
+                top: '-6px',
                 borderRadius: '50%',
-                fontSize: '11px',
+                fontSize: '10px',
                 backgroundColor: '#99060D',
               }}
             >
