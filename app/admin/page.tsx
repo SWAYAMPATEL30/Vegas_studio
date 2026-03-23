@@ -210,7 +210,13 @@ export default function AdminPage() {
   const fetchServices = async () => {
     try {
       setServicesLoading(services.length === 0)
-      const response = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+      const token = getAuthToken()
+      const response = await fetch(`${API_BASE_URL}/admin/services`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        cache: 'no-store'
+      })
       if (!response.ok) throw new Error('Failed to fetch services')
       const data = await response.json()
       setServices(data)
@@ -289,6 +295,8 @@ export default function AdminPage() {
           price: updates.price,
           descriptions: updates.descriptions,
           duration_minutes: updates.duration_minutes,
+          type: updates.type,
+          is_active: updates.is_active,
           image_url: (updates as any).image_url || (updates as any).image
         }),
       })

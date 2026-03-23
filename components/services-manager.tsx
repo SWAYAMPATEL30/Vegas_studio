@@ -99,13 +99,13 @@ export function ServicesManager({
       }
 
       if (editingId) {
-        // For updates, send all fields
         await onUpdateService(editingId, {
           name: serviceData.name,
           price: serviceData.price,
           descriptions: serviceData.descriptions,
           duration_minutes: serviceData.duration_minutes,
-          image_url: serviceData.image_url
+          image_url: serviceData.image_url,
+          type: serviceData.type
         })
       } else {
         await onAddService(serviceData)
@@ -208,14 +208,10 @@ export function ServicesManager({
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                   style={{ color: "black" }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  disabled={!!editingId} // Type cannot be updated
                 >
                   <option value="individual">Individual</option>
                   <option value="combo">Combo</option>
                 </select>
-                {editingId && (
-                  <p className="text-xs text-muted-foreground mt-1">El tipo no se puede modificar</p>
-                )}
               </div>
             </div>
 
@@ -354,6 +350,17 @@ export function ServicesManager({
 
               <div className="flex gap-2">
                 <button
+                  onClick={() => onUpdateService(service.id, { is_active: !service.is_active })}
+                  className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 rounded text-sm font-medium transition-all border shadow-sm"
+                  style={{ 
+                    backgroundColor: service.is_active ? '#ecfdf5' : '#fef2f2',
+                    borderColor: service.is_active ? '#a7f3d0' : '#fecaca',
+                    color: service.is_active ? '#065f46' : '#991b1b'
+                  }}
+                >
+                  {service.is_active ? 'Visible' : 'Oculto'}
+                </button>
+                <button
                   onClick={() => handleEdit(service)}
                   className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 rounded text-sm font-medium transition-all"
                   style={{ background: '#FDB400', color: '#1A2722' }}
@@ -379,10 +386,6 @@ export function ServicesManager({
                   Eliminar
                 </button>
               </div>
-
-              {!service.is_active && (
-                <p className="text-xs text-red-500 mt-2 text-center">Servicio inactivo</p>
-              )}
             </div>
           ))
         )}
