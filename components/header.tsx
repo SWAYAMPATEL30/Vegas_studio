@@ -38,16 +38,8 @@ export function Header({ onCartClick }: HeaderProps) {
     <header className="border-b border-border/30 relative" style={{ background: 'var(--header-bg, var(--background-custom))' }}>
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         
-        {/* Left side: Hamburger & Logo */}
+        {/* Left side: Logo */}
         <div className="flex items-center gap-2">
-          {/* Mobile Hamburger */}
-          <button 
-            className="md:hidden text-gray-800 p-1"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <Image
@@ -172,6 +164,14 @@ export function Header({ onCartClick }: HeaderProps) {
             <Image src="/icons/CALENDAR.svg" alt="" width={20} height={20} className="w-4 h-4 md:w-5 md:h-5" />
             <span className="hidden md:inline">Agendar cita</span>
           </Link>
+
+          {/* Mobile Hamburger */}
+          <button 
+            className="md:hidden p-1 ml-1"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-7 h-7" style={{ color: '#FDB400' }} /> : <Menu className="w-7 h-7" style={{ color: '#FDB400' }} />}
+          </button>
         </div>
       </div>
 
