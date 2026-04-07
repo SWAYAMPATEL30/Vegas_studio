@@ -41,7 +41,8 @@ export default function ServiciosPage() {
   const [error, setError] = useState<string | null>(null)
   const [addingToCart, setAddingToCart] = useState<string | null>(null)
   
-  const { addItem } = useCart()
+  const { addItem, items } = useCart()
+  const itemCount = items.length
   const { token } = useAuth()
 
   // Fetch services on mount
@@ -93,6 +94,9 @@ export default function ServiciosPage() {
         name: service.name,
         price: service.price,
       })
+
+      // Show floating notification
+      showCartNotification()
 
     } catch (error) {
       console.error('[v0] Error adding to cart:', error)
@@ -199,7 +203,7 @@ export default function ServiciosPage() {
             <div 
               key={combo.id}
               className="grid grid-cols-1 md:grid-cols-2 mb-16 items-center" 
-              style={{ gap: '0rem' }}
+              style={{ gap: '2rem' }}
             >
               {/* Image - alternates left/right based on index */}
               <div className={`${index % 2 === 1 ? 'md:order-2' : ''} aspect-square rounded-2xl overflow-hidden relative w-full max-w-[400px] ${index % 2 === 1 ? 'md:ml-auto' : ''}`}>
@@ -212,48 +216,47 @@ export default function ServiciosPage() {
               </div>
               
               {/* Content */}
-              <div className={`${index % 2 === 1 ? 'md:order-1' : ''}`}>
+              <div className={`${index % 2 === 1 ? 'md:order-1' : ''} p-4 md:p-8`}>
                 <div className="flex items-center gap-4 mb-4">
                   <Image
                     src={getServiceIcon(combo.id) || "/placeholder.svg"}
                     alt=""
                     width={32}
                     height={32}
-                    className="w-8 h-8"
+                    className="w-8 h-8 object-contain"
                   />
                   <h2 className="text-2xl font-bold">{combo.name}</h2>
-                  <span className="border border-border px-3 py-1 rounded text-sm">
-                    Duración: {combo.duration_minutes} min
+                  <span className="border border-border px-3 py-1 rounded text-xs opacity-80">
+                    {combo.duration_minutes} min
                   </span>
                 </div>
-                <p className="text-muted-foreground mb-4">
-                  {combo.descriptions[0]}
-                  {combo.descriptions.length > 1 && (
-                    <>
-                      <br />
-                      {combo.descriptions.slice(1).join(', ')}
-                    </>
-                  )}
-                </p>
-                <ul className="text-sm space-y-1 mb-4">
-                  {combo.descriptions.map((desc, idx) => (
-                    <li key={idx}>• {desc}</li>
-                  ))}
-                </ul>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-primary">
+                
+                {/* Fixed Description Repeats and Truncation */}
+                <div className="mb-6">
+                  <ul className="text-sm space-y-2 text-muted-foreground uppercase tracking-tight">
+                    {combo.descriptions.map((desc, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <div className="w-[5px] h-[5px] rounded-full bg-primary mt-[9px] flex-shrink-0" />
+                        <span>{desc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex items-center justify-between mt-auto">
+                  <span className="text-2xl font-bold text-primary">
                     {formatPrice(combo.price)}
                   </span>
                   <button
                     onClick={() => handleAddToCart(combo)}
                     disabled={addingToCart === combo.id}
-                    className="plus-btn w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 disabled:opacity-50"
+                    className="plus-btn w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 disabled:opacity-50"
                     style={{ background: 'linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), #9AC138', padding: '9px' }}
                   >
                     {addingToCart === combo.id ? (
-                      <div className="w-[14px] h-[14px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-[18px] h-[18px] border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Plus className="plus-btn-icon w-[14px] h-[14px] text-white transition-colors duration-300" />
+                      <Plus className="plus-btn-icon w-[18px] h-[18px] text-white transition-colors duration-300" />
                     )}
                   </button>
                 </div>
@@ -272,80 +275,105 @@ export default function ServiciosPage() {
         <h2 className="text-3xl font-bold text-center mb-12">Otros servicios</h2>
 
         {/* All cards in a single grid: 3 columns, gap 55px */}
-        <div className="grid grid-cols-1 md:grid-cols-3 mb-10 justify-items-center" style={{ gap: "55px", alignContent: "flex-start", alignItems: "start" }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-10 justify-items-center" style={{ gap: "40px 55px", alignContent: "flex-start", alignItems: "stretch" }}>
           {gridServices.map((service) => (
             <div
               key={service.id}
-              className="service-card cursor-pointer flex flex-col bg-card overflow-hidden"
+              className="service-card cursor-pointer flex flex-col bg-card overflow-hidden group"
               style={{
-                width: '344px',
-                minHeight: '260px',
-                borderRadius: '10px',
+                width: '100%',
+                maxWidth: '360px',
+                minHeight: '280px',
+                borderRadius: '12px',
                 border: '1px solid #7B9A2D',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
-              {/* Image Header if exists */}
-              {(service.image) && (
-                <div className="relative w-full h-32 overflow-hidden border-b border-[#7B9A2D]">
-                  <Image src={service.image} alt={service.name} fill className="object-cover" />
+              {/* Optional Image */}
+              {service.image && (
+                <div className="relative w-full h-40 overflow-hidden border-b border-[#7B9A2D]">
+                  <Image 
+                    src={service.image} 
+                    alt={service.name} 
+                    fill 
+                    className="object-cover transition-transform duration-500 group-hover:scale-110" 
+                  />
                 </div>
               )}
 
-              <div className="flex flex-col flex-1 p-[30px]">
-              {/* Top row: icon + name + price badge */}
-              <div className="flex items-start justify-between gap-3 w-full">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <Image
-                    src={service.image || getServiceIcon(service.id) || "/placeholder.svg"}
-                    alt=""
-                    width={32}
-                    height={32}
-                    className="w-8 h-8 flex-shrink-0 mt-0.5 object-cover rounded"
-                  />
-                  <span className="font-bold text-white break-words line-clamp-2 capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '20px', lineHeight: '30px' }}>{service.name}</span>
+              <div className="flex flex-col flex-1 p-6 relative">
+                {/* Top row: icon + name + price badge */}
+                <div className="flex items-start justify-between gap-3 w-full mb-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5 overflow-hidden">
+                      <Image
+                        src={getServiceIcon(service.id) || "/icons/Scissors.svg"}
+                        alt=""
+                        width={24}
+                        height={24}
+                        className="w-6 h-6 object-contain"
+                      />
+                    </div>
+                    <span className="font-bold text-white break-words line-clamp-1 capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', lineHeight: '24px' }}>
+                      {service.name}
+                    </span>
+                  </div>
                 </div>
-                <span className="rounded-[6px] flex flex-shrink-0 items-center justify-center" style={{ border: '1px solid #9AC138', padding: '6px 14px', height: 'fit-content' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 500, color: '#FFFFFF', whiteSpace: 'nowrap' }}>
+
+                <span className="inline-block rounded-full w-fit mb-4" style={{ background: 'rgba(154, 193, 56, 0.1)', border: '1px solid #9AC138', padding: '4px 12px' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 600, color: '#9AC138' }}>
                     {formatPrice(service.price)}
                   </span>
                 </span>
-              </div>
 
-              {/* Description */}
-              <p className="mt-4" style={{ fontFamily: 'Inter, sans-serif', fontSize: '15px', fontWeight: 400, lineHeight: '22px', color: '#DFE1D5' }}>
-                {service.descriptions[0]}
-              </p>
+                {/* Description handling Long items */}
+                <div className="text-sm space-y-2 mb-6 text-[#DFE1D5] overflow-hidden flex-1">
+                    <ul className="space-y-1">
+                      {service.descriptions.map((desc, idx) => (
+                        <li 
+                          key={idx} 
+                          className={`flex items-start gap-2 ${idx > 1 ? 'hidden group-hover:flex' : 'flex'}`}
+                        >
+                          <div className="w-[5px] h-[5px] rounded-full bg-primary mt-[9px] flex-shrink-0" />
+                          <span className="line-clamp-2">{desc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                   {service.descriptions.length > 2 && (
+                     <div className="text-[10px] text-primary/80 group-hover:hidden mt-2 ml-5">Ver más...</div>
+                   )}
+                </div>
 
-              {/* Spacer */}
-              <div className="flex-1" />
+                {/* Spacer */}
+                <div className="mt-auto" />
 
-              {/* Bottom row: duration + plus button */}
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#DFE1D5' }}>
-                    {"Duración: "}{service.duration_minutes}{" min"}
+                {/* Bottom row: duration + plus button */}
+                <div className="flex items-center justify-between border-t border-white/5 pt-4">
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#9AC138]" />
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '13px', color: '#DFE1D5' }}>
+                      {service.duration_minutes}{" min"}
+                    </span>
                   </span>
-                </span>
-                <button
-                  onClick={() => handleAddToCart(service)}
-                  disabled={addingToCart === service.id}
-                  className="plus-btn w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 disabled:opacity-50"
-                  style={{ background: 'linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), #9AC138', padding: '9px' }}
-                >
-                  {addingToCart === service.id ? (
-                    <div className="w-[16px] h-[16px] border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Plus className="plus-btn-icon w-[16px] h-[16px] text-white transition-colors duration-300" />
-                  )}
-                </button>
+                  <button
+                    onClick={() => handleAddToCart(service)}
+                    disabled={addingToCart === service.id}
+                    className="plus-btn w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 disabled:opacity-50 hover:scale-110 active:scale-95"
+                    style={{ background: 'linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), #9AC138' }}
+                  >
+                    {addingToCart === service.id ? (
+                      <div className="w-[16px] h-[16px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Plus className="plus-btn-icon w-[16px] h-[16px] text-white" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
           ))}
 
           {gridServices.length === 0 && (
-            <p className="text-center text-muted-foreground col-span-full">
+            <p className="text-center text-muted-foreground col-span-full py-12">
               No hay servicios disponibles
             </p>
           )}
@@ -355,19 +383,61 @@ export default function ServiciosPage() {
         <div className="text-center mt-12">
           <Link
             href="/agendar"
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md hover:bg-primary/90 transition-colors font-medium"
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-xl hover:bg-primary/90 transition-all font-bold shadow-lg hover:shadow-primary/20 hover:-translate-y-1"
           >
-            Continuar
+            Continuar con la reserva
             <span className="text-lg">{"→"}</span>
           </Link>
         </div>
       </section>
+
+      {/* Floating Success Notification */}
+      <div 
+        id="cart-notification"
+        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 opacity-0 translate-y-10"
+      >
+        <div className="bg-[#9AC138] text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+          <div className="bg-white/20 rounded-full p-1">
+             <Plus className="w-4 h-4" />
+          </div>
+          <span className="font-medium">¡Servicio agregado al carrito!</span>
+        </div>
+      </div>
+
+      {/* Mobile Floating Cart Preview */}
+      <div 
+        className="fixed bottom-6 right-6 z-40 md:hidden"
+        onClick={() => setIsCartOpen(true)}
+      >
+        <button className="bg-primary text-black w-14 h-14 rounded-full shadow-2xl flex items-center justify-center relative">
+           <Image src="/icons/Shopping.svg" width={24} height={24} alt="Cart" />
+           <span className="absolute -top-1 -right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-background">
+             {itemCount}
+           </span>
+        </button>
+      </div>
 
       <Footer />
 
       {/* Modals */}
       <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      
+      {/* Success Notification Trigger script hack (for demo) */}
+      <style jsx>{`
+        .notification-active {
+          opacity: 1 !important;
+          transform: translateY(0) translateX(-50%) !important;
+        }
+      `}</style>
     </div>
   )
+}
+
+// Logic extension for the notification
+const showCartNotification = () => {
+  const el = document.getElementById('cart-notification');
+  if (!el) return;
+  el.classList.add('notification-active');
+  setTimeout(() => el.classList.remove('notification-active'), 3000);
 }

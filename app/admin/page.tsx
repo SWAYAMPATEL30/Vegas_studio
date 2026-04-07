@@ -271,12 +271,16 @@ export default function AdminPage() {
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to create service')
-      const newService = await response.json()
-      setServices([...services, newService])
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[handleAddService] Server error:', response.status, errText);
+        throw new Error('Failed to create service: ' + errText);
+      }
+      const newService = await response.json();
+      setServices([...services, newService]);
     } catch (error) {
-      console.error('[v0] Error adding service:', error)
-      setError('Error al agregar servicio')
+      console.error('[v0] Error adding service:', error);
+      setError('Error al agregar servicio: ' + (error as any).message);
     }
   }
 
