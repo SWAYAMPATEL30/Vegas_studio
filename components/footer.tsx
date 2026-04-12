@@ -48,7 +48,7 @@ export function Footer() {
           <div className="flex flex-col items-center md:items-end gap-3 text-foreground">
             <div>
               <p className="text-muted-foreground text-sm">Ubicación</p>
-              <p>Calle 76 #63-58</p>
+              <p>Cl 72 #76-62 Bogotá, Colombia</p>
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Horario de atención:</p>

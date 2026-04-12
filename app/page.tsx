@@ -162,11 +162,11 @@ export default function HomePage() {
             <div>
               <h2 className="text-3xl font-bold mb-2 text-[#1A2722]">{"Ca\u00e9 al estudio cuando"}<br />lo necesites.</h2>
               <p className="text-orange-500 mb-6">{"\u00a1Aqu\u00ed te esperamos!"}</p>
-              <div className="mb-6"><span className="inline-block bg-[#1A2722] text-white px-4 py-2 rounded-md text-sm">Calle 76 #63-58</span></div>
+              <div className="mb-6"><span className="inline-block bg-[#1A2722] text-white px-4 py-2 rounded-md text-sm">Cl 72 #76-62 Bogotá, Colombia</span></div>
               <div className="h-48 bg-white rounded-lg mb-6 overflow-hidden border border-gray-300 relative shadow-inner">
                 <Image
                   src="0201d6fc6eebe184aceb1b100451ace0d1bad89e.png"
-                  alt="Ubicación Vegas Estudio en Barranquilla"
+                  alt="Ubicación Vegas Estudio en Bogotá"
                   fill
                   className="object-cover transition-transform duration-500 hover:scale-110"
                 />

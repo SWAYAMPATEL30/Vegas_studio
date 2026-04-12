@@ -104,7 +104,7 @@ export function ServicesManager({
         descriptions: descriptionsArray.length > 0 ? descriptionsArray : [formData.descriptions],
         duration_minutes: Number(formData.duration_minutes),
         type: formData.type,
-        image_url: uploadedUrl || undefined,
+        image_url: uploadedUrl || null,
       }
 
       if (editingId) {

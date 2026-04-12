@@ -267,7 +267,7 @@ export default function AdminPage() {
           price: serviceData.price,
           descriptions: serviceData.descriptions,
           type: serviceData.type,
-          image_url: (serviceData as any).image_url || (serviceData as any).image
+          image_url: (serviceData as any).image_url !== undefined ? (serviceData as any).image_url : (serviceData as any).image
         }),
       })
 
@@ -301,7 +301,7 @@ export default function AdminPage() {
           duration_minutes: updates.duration_minutes,
           type: updates.type,
           is_active: updates.is_active,
-          image_url: (updates as any).image_url || (updates as any).image
+          image_url: (updates as any).image_url !== undefined ? (updates as any).image_url : (updates as any).image
         }),
       })
 
