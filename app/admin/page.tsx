@@ -333,6 +333,27 @@ export default function AdminPage() {
     }
   }
 
+  // Toggle featured (shown on home page)
+  const handleToggleFeatured = async (id: string, is_featured: boolean) => {
+    try {
+      const token = getAuthToken()
+      const response = await fetch(`${API_BASE_URL}/admin/services/${id}/featured`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_featured })
+      })
+      if (!response.ok) throw new Error('Failed to toggle featured')
+      // Update local state immediately
+      setServices(services.map((s) => s.id === id ? { ...s, is_featured } : s))
+    } catch (error) {
+      console.error('[v0] Error toggling featured:', error)
+      setError('Error al actualizar servicio destacado')
+    }
+  }
+
   // Add blocked slot
   const handleAddBlockedSlot = async (date: string, startTime: string | null, endTime: string | null, reason: string, isFullDay: boolean) => {
     setSlotsLoading(true)
@@ -588,6 +609,7 @@ export default function AdminPage() {
                   onAddService={handleAddService}
                   onUpdateService={handleUpdateService}
                   onDeleteService={handleDeleteService}
+                  onToggleFeatured={handleToggleFeatured}
                   loading={servicesLoading}
                 />
               </div>

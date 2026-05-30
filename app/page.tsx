@@ -20,25 +20,27 @@ export default function HomePage() {
   const [liveServices, setLiveServices] = useState<any[]>([])
   const { addItem } = useCart()
 
-  // Fetch services on mount
+  // Fetch featured services for home page (admin-controlled)
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/services`, { cache: 'no-store' })
+        const res = await fetch(`${API_BASE_URL}/services/featured`, { cache: 'no-store' })
         if (res.ok) {
           const data = await res.json()
           setLiveServices(data)
         }
       } catch (err) {
-        console.warn('[v0] Error fetching home services:', err)
+        console.warn('[v0] Error fetching featured services:', err)
       }
     }
     fetchServices()
   }, [])
 
-  // Use live services if available, fallback to local data
+  // Use live featured services (admin-chosen), fallback to local packages
   const displayServices = liveServices.length > 0 ? liveServices : services
-  const packages = displayServices.filter((s: any) => s.type === "package" || s.type === "combo").slice(0, 3)
+  const packages = liveServices.length > 0
+    ? liveServices.slice(0, 3)
+    : displayServices.filter((s: any) => s.type === 'package').slice(0, 3)
 
   return (
     <div className="min-h-screen bg-background text-foreground">

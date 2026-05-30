@@ -2,7 +2,7 @@
 
 import React from "react"
 import { useState } from 'react'
-import { Trash2, Edit2, Plus, Loader2, Upload, ImageIcon, XCircle } from 'lucide-react'
+import { Trash2, Edit2, Plus, Loader2, Upload, ImageIcon, XCircle, Star } from 'lucide-react'
 import { uploadServiceImage } from '@/lib/supabase-admin'
 import Image from 'next/image'
 import { useAuth } from '@/lib/auth-context'
@@ -15,6 +15,7 @@ interface Service {
   duration_minutes: number
   type: 'individual' | 'combo'
   is_active: boolean
+  is_featured?: boolean
   image_url?: string
   image?: string | null
   created_at: string
@@ -25,6 +26,7 @@ interface ServicesManagerProps {
   onAddService: (service: Omit<Service, 'id' | 'is_active' | 'created_at'>) => Promise<void>
   onUpdateService: (id: string, service: Partial<Service>) => Promise<void>
   onDeleteService: (id: string) => Promise<void>
+  onToggleFeatured?: (id: string, is_featured: boolean) => Promise<void>
   loading: boolean
 }
 
@@ -33,6 +35,7 @@ export function ServicesManager({
   onAddService,
   onUpdateService,
   onDeleteService,
+  onToggleFeatured,
   loading,
 }: ServicesManagerProps) {
   const { role } = useAuth()
@@ -300,6 +303,19 @@ export function ServicesManager({
               </button>
               {isAdmin && (
                 <>
+                  {onToggleFeatured && (
+                    <button
+                      onClick={() => onToggleFeatured(service.id, !service.is_featured)}
+                      title={service.is_featured ? 'Quitar de inicio' : 'Mostrar en inicio'}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 ${
+                        service.is_featured
+                          ? 'bg-yellow-400 border-yellow-500 text-black'
+                          : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-yellow-50 hover:border-yellow-300 hover:text-yellow-600'
+                      }`}
+                    >
+                      <Star className="w-3 h-3" fill={service.is_featured ? 'currentColor' : 'none'} />
+                    </button>
+                  )}
                   <button onClick={() => handleEdit(service)} className="flex-1 py-2 bg-yellow-400 rounded-lg text-xs font-bold text-black border border-yellow-500">Editar</button>
                   <button onClick={() => confirm('¿Eliminar?') && onDeleteService(service.id)} className="flex-1 py-2 border border-red-200 rounded-lg text-xs font-bold text-red-600">Borrar</button>
                 </>
